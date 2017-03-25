@@ -4,6 +4,7 @@ income:
             amount: 100
     'BiWeekly Pay Cheque':
         BiWeekly:
+            start_date: '2017-01-06T00:00:00.000000000-04:00'
             amount: 75
     'Tax Return':
         Once:
@@ -16,7 +17,7 @@ investments:
 rules:
     'Deposit Pay Cheque':
         Deposit:
-            amount: 50
+            amount: 75
             from: 'BiWeekly Pay Cheque'
             to: 'Stocks'
     'Deposit Tax Return':
