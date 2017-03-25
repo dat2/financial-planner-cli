@@ -1,8 +1,18 @@
 income:
     - Monthly:
+        name: 'Paycheque'
         amount: 100
     - BiWeekly:
+        name: 'Paycheque 2'
         amount: 20
     - OneTime:
+        name: 'Tax Return'
         amount: 30
         date: '2017-03-25T00:00:00.000000000-04:00'
+investments:
+    - name: 'Stocks'
+      roi: 0.05
+      amount: 100000
+    - name: 'RRSP'
+      roi: 0.03
+      amount: 15000
