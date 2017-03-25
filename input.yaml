@@ -1,2 +1,8 @@
 income:
-    - monthly: 100
+    - Monthly:
+        amount: 100
+    - BiWeekly:
+        amount: 20
+    - OneTime:
+        amount: 30
+        date: '2017-03-25T00:00:00.000000000-04:00'

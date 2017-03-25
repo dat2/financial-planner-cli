@@ -4,17 +4,39 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_yaml;
+extern crate chrono;
 
-use clap::{Arg, App, SubCommand};
-use ramp::rational::Rational;
 use std::fs::File;
+use chrono::prelude::*;
+use ramp::rational::Rational;
+use clap::{Arg, App, SubCommand};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct IncomeStream {
-    monthly: f64,
+#[derive(Debug, Deserialize)]
+struct Monthly {
+    amount: f64,
+    end_date: Option<DateTime<Local>>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
+struct BiWeekly {
+    amount: f64,
+    end_date: Option<DateTime<Local>>
+}
+
+#[derive(Debug, Deserialize)]
+struct OneTime {
+    amount: f64,
+    date: DateTime<Local>
+}
+
+#[derive(Debug, Deserialize)]
+enum IncomeStream {
+    Monthly(Monthly),
+    BiWeekly(BiWeekly),
+    OneTime(OneTime)
+}
+
+#[derive(Debug, Deserialize)]
 struct Input {
     income: Vec<IncomeStream>,
 }
