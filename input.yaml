@@ -1,24 +1,26 @@
 income:
-    'Pay Cheque':
+    'Monthly Pay Cheque':
         Monthly:
             amount: 100
-    'Other Pay Cheque':
+    'BiWeekly Pay Cheque':
         BiWeekly:
-            amount: 20
+            amount: 75
     'Tax Return':
         Once:
-            amount: 30
+            amount: 300
             date: '2017-03-25T00:00:00.000000000-04:00'
 investments:
     'Stocks':
         roi: 0.05
         amount: 100000
-    'RRSP':
-        roi: 0.03
-        amount: 15000
 rules:
     'Deposit Pay Cheque':
         Deposit:
             amount: 50
-            from: 'Pay Cheque'
+            from: 'BiWeekly Pay Cheque'
+            to: 'Stocks'
+    'Deposit Tax Return':
+        Deposit:
+            amount: 300
+            from: 'Tax Return'
             to: 'Stocks'

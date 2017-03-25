@@ -63,7 +63,23 @@ enum Rule {
 struct Plan {
     income: HashMap<String, IncomeSource>,
     investments: HashMap<String, Investment>,
-    rules: HashMap<String, Rule>
+    rules: Option<HashMap<String, Rule>>
+}
+
+// TODO complain if deposit_amount > income
+// TODO care about the year / end date
+fn calculate_yearly_deposit_amount(income: &IncomeSource, deposit_amount: f64) -> f64 {
+    match *income {
+        IncomeSource::Monthly(_) => {
+            deposit_amount * 12.0
+        },
+        IncomeSource::BiWeekly(_) => {
+            deposit_amount * 26.0
+        },
+        IncomeSource::Once(_) => {
+            deposit_amount
+        }
+    }
 }
 
 fn print_forecast(input: Plan, years: u32) {
@@ -90,12 +106,14 @@ fn print_forecast(input: Plan, years: u32) {
             *previous_year_value *= 1.0 + investment.roi;
 
             // add rules
-            for (_, rule) in &input.rules {
-                match *rule {
-                    Rule::Deposit(ref d) if d.to == *name => {
-                        *previous_year_value += d.amount;
-                    },
-                    _ => { }
+            if let Some(ref rules) = input.rules {
+                for (_, rule) in rules {
+                    match *rule {
+                        Rule::Deposit(ref d) if d.to == *name => {
+                            *previous_year_value += calculate_yearly_deposit_amount(input.income.get(&d.from).unwrap(), d.amount);
+                        },
+                        _ => { }
+                    }
                 }
             }
         }
