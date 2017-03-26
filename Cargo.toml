@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Nicholas Dujay <nickdujay@gmail.com>"]
 
 [dependencies]
-ramp = "0.3"
+num = "0.1"
 clap = "2"
 serde = "0.9"
 serde_derive = "0.9"

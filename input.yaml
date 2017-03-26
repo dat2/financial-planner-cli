@@ -1,27 +1,30 @@
-income:
-    'Monthly Pay Cheque':
-        Monthly:
-            amount: 100
-    'BiWeekly Pay Cheque':
-        BiWeekly:
-            start_date: '2017-01-06T00:00:00.000000000-04:00'
-            amount: 75
-    'Tax Return':
-        Once:
-            amount: 300
-            date: '2017-03-25T00:00:00.000000000-04:00'
-investments:
+assets:
     'Stocks':
         roi: 0.05
-        amount: 100000
+        amount: 5000
+liabilities:
+    'Credit Card Debt':
+        Loan:
+            amount: 1000
+            interest: 0.03
+    'Other Debt':
+        Loan:
+            amount: 2000
+            interest: 0.19
+income:
+    'BiWeekly Pay Cheque':
+        BiWeekly:
+            start_date: '2017-01-06'
+            amount: 100
 rules:
-    'Deposit Pay Cheque':
+    'Deposit Pay Cheque into Stocks':
         Deposit:
-            amount: 75
+            amount: 100
             from: 'BiWeekly Pay Cheque'
             to: 'Stocks'
-    'Deposit Tax Return':
-        Deposit:
-            amount: 300
-            from: 'Tax Return'
-            to: 'Stocks'
+    # 'Use Dividends To Pay Credit Card':
+    #     PayLiability:
+    #         amount: 1000
+    #         from: 'Stocks'
+    #         to: 'Credit Card Debt'
+    #         frequency: Monthly
