@@ -14,10 +14,6 @@ pub struct Money {
 
 // money
 impl Money {
-    pub fn new<T: Into<Float>>(value: T) -> Money {
-        Money { float: value.into() }
-    }
-
     pub fn zero() -> Money {
         Money { float: Float::from((0, 64)) }
     }
@@ -25,6 +21,30 @@ impl Money {
     // TODO multiply by percentage
     pub fn mul_percentage(&mut self, percentage: f64) {
         self.float *= Float::from((percentage, 64));
+    }
+}
+
+impl From<f32> for Money {
+    fn from(value: f32) -> Money {
+        Money { float: Float::from((value, 64)) }
+    }
+}
+
+impl From<f64> for Money {
+    fn from(value: f64) -> Money {
+        Money { float: Float::from((value, 64)) }
+    }
+}
+
+impl From<u32> for Money {
+    fn from(value: u32) -> Money {
+        Money { float: Float::from((value, 64)) }
+    }
+}
+
+impl From<i32> for Money {
+    fn from(value: i32) -> Money {
+        Money { float: Float::from((value, 64)) }
     }
 }
 
@@ -41,7 +61,7 @@ impl Add for Money {
     type Output = Money;
 
     fn add(self, rhs: Money) -> Self::Output {
-        Money::new(self.float + rhs.float)
+        Money { float: self.float + rhs.float }
     }
 }
 
@@ -55,20 +75,13 @@ impl Sub for Money {
     type Output = Money;
 
     fn sub(self, rhs: Money) -> Self::Output {
-        Money::new(self.float - rhs.float)
+        Money { float: self.float - rhs.float }
     }
 }
 
 impl SubAssign for Money {
     fn sub_assign(&mut self, other: Money) {
         self.float -= other.float;
-    }
-}
-
-// conversion
-impl From<f64> for Money {
-    fn from(t: f64) -> Money {
-        Money::new((t, 64))
     }
 }
 
@@ -103,7 +116,7 @@ impl de::Visitor for MoneyVisitor {
     fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E>
         where E: de::Error
     {
-        Ok(Money::new((value, 64)))
+        Ok(Money::from(value))
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
@@ -111,7 +124,7 @@ impl de::Visitor for MoneyVisitor {
     {
         use std::i32;
         if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
-            Ok(Money::new((value as i32, 64)))
+            Ok(Money::from(value as i32))
         } else {
             Err(E::custom(format!("i32 out of range: {}", value)))
         }
@@ -121,7 +134,7 @@ impl de::Visitor for MoneyVisitor {
     fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E>
         where E: de::Error
     {
-        Ok(Money::new((value, 64)))
+        Ok(Money::from(value))
     }
 
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
@@ -129,7 +142,7 @@ impl de::Visitor for MoneyVisitor {
     {
         use std::u32;
         if value >= u32::MIN as u64 && value <= u32::MAX as u64 {
-            Ok(Money::new((value as u32, 64)))
+            Ok(Money::from(value as u32))
         } else {
             Err(E::custom(format!("u32 out of range: {}", value)))
         }
@@ -139,13 +152,13 @@ impl de::Visitor for MoneyVisitor {
     fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E>
         where E: de::Error
     {
-        Ok(Money::new((value, 64)))
+        Ok(Money::from(value))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
         where E: de::Error
     {
-        Ok(Money::new((value, 64)))
+        Ok(Money::from(value))
     }
 }
 

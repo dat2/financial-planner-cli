@@ -7,7 +7,6 @@ extern crate serde_yaml;
 extern crate chrono;
 extern crate prettytable;
 extern crate rugflo;
-extern crate rugint;
 
 mod money;
 mod plan;
@@ -44,7 +43,7 @@ fn print_forecast(plan: Plan, years: usize) {
         let mut year_row = Vec::new();
         year_row.push(Cell::new(&range.end_date.year().to_string()));
 
-        let mut net = Money::new((0, 64));
+        let mut net = Money::from(0);
 
         // add assets
         for (name, asset) in &plan.assets {
