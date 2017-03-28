@@ -7,12 +7,15 @@ extern crate serde_yaml;
 extern crate chrono;
 extern crate prettytable;
 extern crate rugflo;
+#[macro_use] extern crate maplit;
 
 mod money;
 mod plan;
+mod accounts;
 
 use money::*;
 use plan::*;
+use accounts::*;
 
 use std::fs::File;
 use std::collections::HashMap;
@@ -94,6 +97,30 @@ fn print_forecast(plan: Plan, years: usize) {
 }
 
 fn main() {
+
+    let transactions = vec![
+        (NaiveDate::from_ymd(2017, 1, 1), Transaction::new(Money::from(50), String::from("A"), String::from("B"))),
+        (NaiveDate::from_ymd(2017, 2, 1), Transaction::new(Money::from(50), String::from("B"), String::from("A")))
+    ];
+    let dates = vec![ NaiveDate::from_ymd(2017, 1, 1), NaiveDate::from_ymd(2017, 1, 15), NaiveDate::from_ymd(2017, 1, 30), NaiveDate::from_ymd(2017, 2, 1), NaiveDate::from_ymd(2017, 2, 28) ];
+
+    let current_state = (
+        NaiveDate::from_ymd(2017, 1, 1),
+        Moment::new(hashmap! {
+            String::from("A") => Money::from(100),
+            String::from("B") => Money::from(0)
+        })
+    );
+
+    for (date, moment) in History::new(current_state, dates.into_iter(), transactions.into_iter()) {
+        println!("{}", date);
+        for (account, value) in moment.accounts {
+            println!("{}: {}", account, value);
+        }
+
+        println!("");
+    }
+
     let matches = App::new("financial-planner")
         .version("0.1")
         .author("Nicholas D. <nickdujay@gmail.com>")
