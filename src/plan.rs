@@ -4,8 +4,21 @@ use chrono::prelude::*;
 use chrono;
 
 use money::Money;
+use accounts::*;
 
-#[derive(Debug, Serialize, Deserialize)]
+fn today() -> NaiveDate {
+    let local = Local::now();
+    NaiveDate::from_ymd(local.year(), local.month(), local.day())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Frequency {
+    Monthly,
+    BiWeekly,
+    Once
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub assets: HashMap<String, Asset>,
     pub liabilities: HashMap<String, Liability>,
@@ -13,102 +26,120 @@ pub struct Plan {
     pub rules: Option<HashMap<String, Rule>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Asset {
     pub roi: f64,
     pub amount: Money,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Liability {
     Loan(LoanLiability),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LoanLiability {
     pub amount: Money,
     pub interest: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum IncomeSource {
-    Monthly(MonthlyIncome),
-    BiWeekly(BiWeeklyIncome),
-    Once(OneTimeIncome),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MonthlyIncome {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct IncomeSource {
     pub amount: Money,
+    pub frequency: Frequency,
     pub start_date: Option<NaiveDate>,
-    pub end_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BiWeeklyIncome {
-    pub amount: Money,
-    pub start_date: Option<NaiveDate>,
-    pub end_date: Option<NaiveDate>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OneTimeIncome {
-    pub amount: Money,
-    pub date: NaiveDate,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Rule {
     Deposit(Deposit),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Deposit {
     pub amount: Money,
     pub from: String,
     pub to: String,
 }
 
-impl IncomeSource {
-    pub fn amount(&self) -> Money {
-        use IncomeSource::*;
+// stream stuff
+pub struct RepeatingTransaction {
+    frequency: Frequency,
+    transaction: Transaction,
+    state: Option<NaiveDate>
+}
 
-        match *self {
-            Monthly(ref m) => m.amount.clone(),
-            BiWeekly(ref w) => w.amount.clone(),
-            Once(ref o) => o.amount.clone(),
+impl RepeatingTransaction {
+    fn new(frequency: Frequency, amount: Money, from: String, to: String, state: NaiveDate) -> RepeatingTransaction {
+        RepeatingTransaction {
+            frequency: frequency,
+            transaction: Transaction::new(amount, from, to),
+            state: Some(state)
         }
+    }
+}
+
+impl Iterator for RepeatingTransaction {
+    type Item = (NaiveDate, Transaction);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.state {
+            Some(previous_date) => {
+                let next_date = match self.frequency {
+                    Frequency::Monthly => Some(previous_date + chrono::Duration::weeks(4)),
+                    Frequency::BiWeekly => Some(previous_date + chrono::Duration::weeks(2)),
+                    Frequency::Once => None
+                };
+
+                self.state = next_date;
+                Some((previous_date, self.transaction.clone()))
+            },
+            None => None
+        }
+    }
+}
+
+impl Plan {
+    // TODO increase income rule
+
+    pub fn deposit_income(&self, amount: Money, from: String, to: String) -> Option<RepeatingTransaction> {
+        match self.income.get(&from) {
+            Some(ref income) => {
+                if amount <= income.amount {
+                    Some(RepeatingTransaction::new(income.frequency.clone(), amount, from, to, income.start_date.unwrap_or(today())))
+                } else {
+                    None
+                }
+            },
+            None => None
+        }
+    }
+}
+
+// OLD STUFF
+impl IncomeSource {
+
+    pub fn amount(&self) -> Money {
+        self.amount.clone()
     }
 
     pub fn start_date(&self) -> NaiveDate {
-        use IncomeSource::*;
-
         let local_now = Local::now();
         let naive_today = NaiveDate::from_ymd(local_now.year(), local_now.month(), local_now.day());
 
-        match *self {
-            Monthly(ref m) => m.start_date.unwrap_or(naive_today),
-            BiWeekly(ref w) => w.start_date.unwrap_or(naive_today),
-            Once(ref o) => o.date,
-        }
+        self.start_date.unwrap_or(naive_today)
     }
 
     pub fn end_date(&self) -> Option<NaiveDate> {
-        use IncomeSource::*;
-        match *self {
-            Monthly(ref m) => m.end_date,
-            BiWeekly(ref w) => w.end_date,
-            Once(ref o) => Some(o.date),
-        }
+        self.end_date
     }
 
     pub fn step(&self) -> chrono::Duration {
-        use IncomeSource::*;
-
-        match *self {
-            Monthly(_) => chrono::Duration::weeks(4),
-            BiWeekly(_) => chrono::Duration::weeks(2),
-            Once(_) => chrono::Duration::weeks(0),
+        match self.frequency {
+            Frequency::Monthly => chrono::Duration::weeks(4),
+            Frequency::BiWeekly => chrono::Duration::weeks(2),
+            Frequency::Once => chrono::Duration::weeks(0),
         }
     }
 

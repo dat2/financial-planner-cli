@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::iter::IntoIterator;
+use std::fmt;
 use chrono::prelude::*;
 
 use money::Money;
@@ -18,6 +19,12 @@ impl Transaction {
             from: from,
             to: to
         }
+    }
+}
+
+impl fmt::Display for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} from {} to {}", self.amount, self.from, self.to)
     }
 }
 

@@ -13,9 +13,9 @@ liabilities:
             interest: 0.19
 income:
     'BiWeekly Pay Cheque':
-        BiWeekly:
-            start_date: '2017-01-06'
-            amount: 100
+        start_date: '2017-01-06'
+        amount: 100
+        frequency: BiWeekly
 rules:
     'Deposit Pay Cheque into Stocks':
         Deposit:

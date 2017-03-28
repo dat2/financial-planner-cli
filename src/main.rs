@@ -98,30 +98,6 @@ fn print_forecast(plan: Plan, years: usize) {
 
 fn main() {
 
-    let transactions = vec![
-        (NaiveDate::from_ymd(2017, 1, 1), Transaction::new(Money::from(50), String::from("A"), String::from("B"))),
-        (NaiveDate::from_ymd(2017, 2, 1), Transaction::new(Money::from(50), String::from("B"), String::from("A")))
-    ];
-    let dates = vec![ NaiveDate::from_ymd(2017, 1, 1), NaiveDate::from_ymd(2017, 1, 15), NaiveDate::from_ymd(2017, 1, 30), NaiveDate::from_ymd(2017, 2, 1), NaiveDate::from_ymd(2017, 2, 28) ];
-
-    let current_state = (
-        NaiveDate::from_ymd(2017, 1, 1),
-        Moment::new(hashmap! {
-            String::from("A") => Money::from(100),
-            String::from("B") => Money::from(0)
-        })
-    );
-
-    for (date, moment) in History::new(current_state, dates.into_iter(), transactions.into_iter()) {
-        println!("{}", date);
-
-        for (account, value) in moment.accounts {
-            println!("{}: {}", account, value);
-        }
-
-        println!("");
-    }
-
     let matches = App::new("financial-planner")
         .version("0.1")
         .author("Nicholas D. <nickdujay@gmail.com>")
@@ -140,6 +116,10 @@ fn main() {
 
     let input_file = File::open(matches.value_of("INPUT").unwrap_or("input.yaml")).unwrap();
     let plan: Plan = serde_yaml::from_reader(input_file).unwrap();
+
+    for (date, transaction) in plan.deposit_income(Money::from(100), String::from("BiWeekly Pay Cheque"), String::from("Stocks")).unwrap().take(5) {
+        println!("{} => {}", date, transaction);
+    }
 
     if let Some(matches) = matches.subcommand_matches("forecast") {
         let years = value_t!(matches, "years", usize).unwrap_or(25);
