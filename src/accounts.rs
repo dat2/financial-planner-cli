@@ -78,19 +78,18 @@ impl<T, D> Iterator for History<T, D>
     fn next(&mut self) -> Option<Self::Item> {
         match self.dates.next() {
             Some(next_date) => {
+                // consume the next few transactions
                 let next_transactions = self.transactions
                     .clone()
                     .skip(self.consumed)
                     .take_while(|&(d,_)| d <= next_date)
                     .map(|(_, t)| t)
                     .collect::<Vec<_>>();
+                self.consumed += next_transactions.len();
 
-                self.consumed = next_transactions.len();
-
-                let previous_moment = self.state.1.clone();
-                self.state = (next_date, next_transactions.into_iter().fold(previous_moment.clone(), Moment::push_transaction));
-
-                Some((next_date, previous_moment))
+                // calculate next state
+                self.state = (next_date, next_transactions.into_iter().fold(self.state.1.clone(), Moment::push_transaction));
+                Some(self.state.clone())
             },
             None => None
         }

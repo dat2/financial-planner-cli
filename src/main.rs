@@ -114,6 +114,7 @@ fn main() {
 
     for (date, moment) in History::new(current_state, dates.into_iter(), transactions.into_iter()) {
         println!("{}", date);
+
         for (account, value) in moment.accounts {
             println!("{}: {}", account, value);
         }
