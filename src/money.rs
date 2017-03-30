@@ -88,7 +88,7 @@ impl SubAssign for Money {
 // iterators
 impl Sum for Money {
     fn sum<I>(iter: I) -> Money
-        where I: Iterator<Item=Money>
+        where I: Iterator<Item = Money>
     {
         iter.fold(Money::zero(), Add::add)
     }

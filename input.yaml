@@ -21,7 +21,7 @@ rules:
         Deposit:
             amount: 100
             from: 'BiWeekly Pay Cheque'
-            to: 'Stocks'
+            to: 'assets:Stocks'
     # 'Use Dividends To Pay Credit Card':
     #     PayLiability:
     #         amount: 1000
