@@ -1,50 +1,110 @@
 use std::iter::{Iterator, Peekable};
+use std::collections::BinaryHeap;
+use std::cmp::Ordering;
+use std::cell::RefCell;
+use std::iter::FromIterator;
 
-pub struct OrderedIterator<I: Ord, P: Iterator<Item = I>> {
-    first: Peekable<P>,
-    second: Peekable<P>
+struct OrdIterator<T: Ord, P: Iterator<Item = T>>(RefCell<Peekable<P>>);
+
+impl<T: Ord, P: Iterator<Item = T>> PartialEq for OrdIterator<T, P> {
+    fn eq(&self, other: &Self) -> bool {
+
+        let mut this = self.0.borrow_mut();
+        let mut other = other.0.borrow_mut();
+
+        let this = this.peek();
+        let other = other.peek();
+
+        if this.is_none() && other.is_none() {
+            return true;
+        }
+
+        if this.is_none() || other.is_none() {
+            return false;
+        }
+        let this = this.unwrap();
+        let other = other.unwrap();
+
+        *this == *other
+    }
 }
 
-impl<I, P> OrderedIterator<I, P>
-    where I: Ord,
-          P: Iterator<Item = I>
-{
-    pub fn new(first: P, second: P) -> OrderedIterator<I, P> {
-        let first_peekable = first.peekable();
-        let second_peekable = second.peekable();
+impl<T: Ord, P: Iterator<Item = T>> Eq for OrdIterator<T, P> {}
 
-        OrderedIterator {
-            first: first_peekable,
-            second: second_peekable
+impl<T: Ord, P: Iterator<Item = T>> PartialOrd for OrdIterator<T, P> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+
+        let mut this = self.0.borrow_mut();
+        let mut other = other.0.borrow_mut();
+
+        let this = this.peek();
+        let other = other.peek();
+
+        if this.is_none() || other.is_none() {
+            return None;
+        }
+
+        let this = this.unwrap();
+        let other = other.unwrap();
+
+        match this.partial_cmp(other) {
+            None => None,
+            Some(ord) => {
+                let ord = match ord {
+                    Ordering::Greater => Ordering::Less,
+                    Ordering::Less => Ordering::Greater,
+                    Ordering::Equal => ord,
+                };
+                Some(ord)
+            }
         }
     }
 }
 
-impl<I, P> Iterator for OrderedIterator<I, P>
-    where I: Ord + Clone,
-          P: Iterator<Item = I>
+// http://stackoverflow.com/questions/39949939/how-can-i-implement-a-min-heap-of-f64-with-rusts-binaryheap
+impl<T: Ord, P: Iterator<Item = T>> Ord for OrdIterator<T, P> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+struct SortedIterators<T: Ord, P: Iterator<Item = T>> {
+    heap: BinaryHeap<OrdIterator<T, P>>,
+}
+
+impl<T: Ord, P: Iterator<Item = T>> FromIterator<P> for SortedIterators<T, P> {
+    fn from_iter<I>(iter: I) -> Self
+        where I: IntoIterator<Item = P>
+    {
+
+        let iter = iter.into_iter().map(|x| OrdIterator(RefCell::new(x.peekable())));
+        SortedIterators { heap: BinaryHeap::from_iter(iter) }
+    }
+}
+
+impl<T, P> Iterator for SortedIterators<T, P>
+    where T: Ord + Clone,
+          P: Iterator<Item = T>
 {
-    type Item = I;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
 
-        let first_is_none = self.first.peek().is_none();
-        let second_is_none = self.second.peek().is_none();
+        match self.heap.pop() {
+            None => None,
+            Some(iter) => {
 
-        if first_is_none && second_is_none {
-            return None;
-        }
+                let next = {
+                    iter.0.borrow_mut().next()
+                };
 
-        if first_is_none {
-            return self.second.next();
-        } else if second_is_none {
-            return self.first.next();
-        }
+                let has_next = iter.0.borrow_mut().peek().is_some();
+                if has_next {
+                    self.heap.push(iter);
+                }
 
-        if self.first.peek().unwrap() < self.second.peek().unwrap() {
-            return self.first.next();
-        } else {
-            return self.second.next();
+                next
+            }
         }
 
     }
