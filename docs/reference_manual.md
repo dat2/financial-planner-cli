@@ -1,4 +1,4 @@
-# Help
+# Command Line Usage
 ```
 financial-planner 0.1
 Nicholas D. <nickdujay@gmail.com>
