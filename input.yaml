@@ -1,16 +1,17 @@
-assets:
-    'Stocks':
-        roi: 0.05
-        amount: 5000
-liabilities:
-    'Credit Card Debt':
-        Loan:
+accounts:
+    assets:
+        'Stocks':
+            amount: 5000
+        other:
+            chequing:
+                amount: 600
+            savings:
+                amount: 300
+    liabilities:
+        'Credit Card Debt':
             amount: 1000
-            interest: 0.03
-    'Other Debt':
-        Loan:
+        'Other Debt':
             amount: 2000
-            interest: 0.19
 income:
     'BiWeekly Pay Cheque':
         start_date: '2017-01-06'
@@ -18,13 +19,6 @@ income:
         frequency: BiWeekly
 rules:
     'Deposit Pay Cheque into Stocks':
-        Deposit:
-            amount: 100
-            from: 'BiWeekly Pay Cheque'
-            to: 'assets:Stocks'
-    # 'Use Dividends To Pay Credit Card':
-    #     PayLiability:
-    #         amount: 1000
-    #         from: 'Stocks'
-    #         to: 'Credit Card Debt'
-    #         frequency: Monthly
+        amount: 100
+        from: 'BiWeekly Pay Cheque'
+        to: 'assets:Stocks'

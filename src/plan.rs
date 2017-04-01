@@ -8,39 +8,26 @@ use accounts::*;
 use iterators::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Frequency {
-    Monthly,
-    BiWeekly,
-    Once
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
-    pub assets: HashMap<String, Asset>,
-    pub liabilities: HashMap<String, Liability>,
-    pub income: HashMap<String, IncomeSource>,
+    pub accounts: Accounts,
+    pub income: HashMap<String, Income>,
     pub rules: HashMap<String, Rule>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Asset {
-    pub roi: f64,
+#[serde(untagged)]
+pub enum Accounts {
+    Tree(HashMap<String, Accounts>),
+    Leaf(Account)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Account {
     pub amount: Money,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Liability {
-    Loan(LoanLiability),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LoanLiability {
-    pub amount: Money,
-    pub interest: f64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct IncomeSource {
+pub struct Income {
     pub amount: Money,
     pub frequency: Frequency,
     pub start_date: Option<NaiveDate>,
@@ -48,12 +35,20 @@ pub struct IncomeSource {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Rule {
-    Deposit(Deposit),
+pub enum Frequency {
+    Monthly,
+    BiWeekly,
+    Once
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Deposit {
+#[serde(untagged)]
+pub enum Rule {
+    Transfer(Transfer),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Transfer {
     pub amount: Money,
     pub from: String,
     pub to: String,
@@ -64,13 +59,52 @@ fn today() -> NaiveDate {
     NaiveDate::from_ymd(local.year(), local.month(), local.day())
 }
 
+impl Accounts {
+    // path has colons
+    pub fn get(&self, path: &str) -> Option<&Accounts> {
+        match self {
+            &Accounts::Tree(ref m) => {
+                if let Some(index) = path.find(':') {
+                    let (account, sub_account) = path.split_at(index);
+                    m.get(account).and_then(|a| a.get(&sub_account[1..]))
+                } else {
+                    m.get(path)
+                }
+            },
+            a => {
+                if path.len() == 0 {
+                    Some(a)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    // sum a tree of accounts
+    pub fn sum(&self) -> Money {
+        match *self {
+            Accounts::Tree(ref m) => {
+                let mut result = Money::from(0);
+                for (_, account) in m {
+                    result += account.sum();
+                }
+                result
+            },
+            Accounts::Leaf(ref a) => a.amount.clone()
+        }
+    }
+
+    // TODO flatten
+}
+
 impl Plan {
     fn initial_state(&self) -> Moment {
         let mut result = HashMap::new();
 
-        for (name, asset) in &self.assets {
-            result.insert(format!("assets:{}", name), asset.amount.clone());
-        }
+        // for (name, account) in &self.accounts {
+        //     result.insert(name.clone(), account.amount.clone());
+        // }
 
         Moment::new(result)
     }
@@ -80,9 +114,9 @@ impl Plan {
 
         for (_, rule) in &self.rules {
             match *rule {
-                Rule::Deposit(ref d) => {
+                Rule::Transfer(ref d) => {
                     // TODO don't unwrap
-                    result.push(self.deposit_income(d.amount.clone(), d.from.clone(), d.to.clone())
+                    result.push(self.transfer_income(d.amount.clone(), d.from.clone(), d.to.clone())
                         .unwrap());
                 }
             }
@@ -91,7 +125,7 @@ impl Plan {
         SortedIterator::from_iter(result.into_iter())
     }
 
-    fn deposit_income(&self,
+    fn transfer_income(&self,
                       amount: Money,
                       from: String,
                       to: String)
@@ -165,7 +199,7 @@ pub struct YearStream {
 }
 
 impl YearStream {
-    pub fn years() -> YearStream {
+    pub fn new() -> YearStream {
         YearStream { date: today() }
     }
 }

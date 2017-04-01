@@ -11,4 +11,3 @@ serde_derive = "0.9"
 serde_yaml = "0.6"
 chrono = { version = "0.3", features = ["serde"] }
 prettytable-rs = "^0.6"
-maplit = "0.1"

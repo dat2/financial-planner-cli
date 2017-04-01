@@ -134,3 +134,10 @@ impl Ord for DatedTransaction {
         self.date.cmp(&other.date)
     }
 }
+
+impl fmt::Display for DatedTransaction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} => {}", self.date, self.transaction)
+    }
+}
+

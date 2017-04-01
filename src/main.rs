@@ -7,31 +7,27 @@ extern crate serde_yaml;
 extern crate chrono;
 extern crate prettytable;
 extern crate rugflo;
-#[macro_use]
-extern crate maplit;
 
 mod money;
 mod plan;
 mod accounts;
 mod iterators;
 
-use money::*;
-use plan::*;
-use accounts::*;
-
 use std::fs::File;
-use std::collections::HashMap;
-use chrono::prelude::*;
 use clap::{Arg, App, SubCommand};
 use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 
+use plan::*;
+
 fn print_forecast(plan: Plan, years: usize) {
     let mut table = Table::new();
 
-    for (_, moment) in plan.history(YearStream::years().take(years)) {
+    for (date, moment) in plan.history(YearStream::new().take(years)) {
         let mut result = Vec::new();
+
+        result.push(Cell::new(&format!("{}", date)));
 
         for (name, value) in moment.accounts {
             result.push(Cell::new(&format!("{}: {}", name, value)));
