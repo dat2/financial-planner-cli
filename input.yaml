@@ -1,6 +1,6 @@
 accounts:
     assets:
-        'Stocks':
+        stocks:
             amount: 5000
         other:
             chequing:
@@ -8,9 +8,9 @@ accounts:
             savings:
                 amount: 300
     liabilities:
-        'Credit Card Debt':
+        'credit card debt':
             amount: 1000
-        'Other Debt':
+        'other debt':
             amount: 2000
 income:
     'BiWeekly Pay Cheque':

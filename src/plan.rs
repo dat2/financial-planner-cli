@@ -18,7 +18,7 @@ pub struct Plan {
 #[serde(untagged)]
 pub enum Accounts {
     Tree(HashMap<String, Accounts>),
-    Leaf(Account)
+    Leaf(Account),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ pub struct Income {
 pub enum Frequency {
     Monthly,
     BiWeekly,
-    Once
+    Once,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -70,14 +70,8 @@ impl Accounts {
                 } else {
                     m.get(path)
                 }
-            },
-            a => {
-                if path.len() == 0 {
-                    Some(a)
-                } else {
-                    None
-                }
             }
+            a => if path.len() == 0 { Some(a) } else { None },
         }
     }
 
@@ -90,12 +84,37 @@ impl Accounts {
                     result += account.sum();
                 }
                 result
-            },
-            Accounts::Leaf(ref a) => a.amount.clone()
+            }
+            Accounts::Leaf(ref a) => a.amount.clone(),
         }
     }
 
-    // TODO flatten
+    // get a list of colon separated names
+    pub fn get_names(&self) -> Vec<String> {
+        self.get_names_internal("")
+    }
+
+    fn get_names_internal(&self, path: &str) -> Vec<String> {
+        match *self {
+            Accounts::Tree(ref m) => {
+                let mut result = Vec::new();
+                if path.len() > 0 {
+                    result.push(String::from(path));
+                }
+                for (name, account) in m {
+                    result.extend(account.get_names_internal(&format!("{}{}",
+                                                                      if path.len() == 0 {
+                                                                          String::new()
+                                                                      } else {
+                                                                          format!("{}:", path)
+                                                                      },
+                                                                      name)))
+                }
+                result
+            }
+            Accounts::Leaf(_) => vec![String::from(path)],
+        }
+    }
 }
 
 impl Plan {
@@ -117,7 +136,7 @@ impl Plan {
                 Rule::Transfer(ref d) => {
                     // TODO don't unwrap
                     result.push(self.transfer_income(d.amount.clone(), d.from.clone(), d.to.clone())
-                        .unwrap());
+                            .unwrap());
                 }
             }
         }
@@ -126,10 +145,10 @@ impl Plan {
     }
 
     fn transfer_income(&self,
-                      amount: Money,
-                      from: String,
-                      to: String)
-                      -> Option<RepeatingTransaction> {
+                       amount: Money,
+                       from: String,
+                       to: String)
+                       -> Option<RepeatingTransaction> {
         match self.income.get(&from) {
             Some(ref income) => {
                 if amount <= income.amount {
@@ -146,7 +165,10 @@ impl Plan {
         }
     }
 
-    pub fn history<D: Iterator<Item = NaiveDate>>(&self, dates: D) -> History<SortedIterator<DatedTransaction, RepeatingTransaction>, D> {
+    pub fn history<D: Iterator<Item = NaiveDate>>
+        (&self,
+         dates: D)
+         -> History<SortedIterator<DatedTransaction, RepeatingTransaction>, D> {
         History::new((today(), self.initial_state()), self.transactions(), dates)
     }
 }
@@ -209,7 +231,9 @@ impl Iterator for YearStream {
 
     fn next(&mut self) -> Option<Self::Item> {
         let previous_date = self.date;
-        self.date = NaiveDate::from_ymd(previous_date.year() + 1, previous_date.month(), previous_date.day());
+        self.date = NaiveDate::from_ymd(previous_date.year() + 1,
+                                        previous_date.month(),
+                                        previous_date.day());
         Some(previous_date)
     }
 }

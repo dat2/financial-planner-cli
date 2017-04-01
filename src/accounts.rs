@@ -140,4 +140,3 @@ impl fmt::Display for DatedTransaction {
         write!(f, "{} => {}", self.date, self.transaction)
     }
 }
-

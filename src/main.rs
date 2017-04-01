@@ -60,6 +60,10 @@ fn main() {
     let input_file = File::open(matches.value_of("INPUT").unwrap_or("input.yaml")).unwrap();
     let plan: Plan = serde_yaml::from_reader(input_file).unwrap();
 
+    for name in plan.accounts.get_names() {
+        println!("{} has value {}", name, plan.accounts.get(&name).unwrap().sum());
+    }
+
     if let Some(matches) = matches.subcommand_matches("forecast") {
         let years = value_t!(matches, "years", usize).unwrap_or(25);
         print_forecast(plan, years);
