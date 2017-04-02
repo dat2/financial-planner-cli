@@ -1,4 +1,4 @@
-# financial-planner-cli [![Travis](https://img.shields.io/travis/dat2/financial-planner-cli.svg)]() [![Codecov](https://img.shields.io/codecov/c/github/dat2/financial-planner-cli.svg)]()
+# financial-planner-cli [![Build Status](https://travis-ci.org/dat2/financial-planner-cli.svg?branch=master)](https://travis-ci.org/dat2/financial-planner-cli) [![codecov](https://codecov.io/gh/dat2/financial-planner-cli/branch/master/graph/badge.svg)](https://codecov.io/gh/dat2/financial-planner-cli)
 This is a tool to help users of `ledger` plan their financial future.
 This is meant to be a complement to a budget, as you can see the long term effects of putting $100 into a savings account vs
 putting $110 into a savings account. But remember to live in the present! It is not living a life if you are worrying too much
