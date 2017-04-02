@@ -30,6 +30,7 @@ after_success: |
   sudo make install &&
   cd ../.. &&
   rm -rf kcov-master &&
-  for file in target/debug/financial-planner-cli; do mkdir -p "target/cov/$(basename $file)"; kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+  shopt -s extglob &&
+  for file in target/debug/!(financial_planner_cli-!(*.d); do mkdir -p "target/cov/$(basename $file)"; kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
   bash <(curl -s https://codecov.io/bash) &&
   echo "Uploaded code coverage"
