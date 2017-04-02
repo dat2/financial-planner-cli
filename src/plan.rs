@@ -6,7 +6,6 @@ use chrono;
 use money::Money;
 use accounts::*;
 use iterators::*;
-use errors::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
@@ -43,7 +42,7 @@ fn today() -> NaiveDate {
 }
 
 impl Plan {
-    fn transactions(&self) -> SortedIterator<DatedTransaction, RepeatingTransaction> {
+    fn transactions(&self) -> SortedIterator<Transaction, RepeatingTransaction> {
         let mut result = Vec::new();
 
         for (_, rule) in &self.rules {
@@ -68,7 +67,7 @@ impl Plan {
     pub fn history<D: Iterator<Item = NaiveDate>>
         (&self,
          dates: D)
-         -> History<SortedIterator<DatedTransaction, RepeatingTransaction>, D> {
+         -> History<SortedIterator<Transaction, RepeatingTransaction>, D> {
         History::new((today(), self.accounts.clone()), self.transactions(), dates)
     }
 }
@@ -77,7 +76,9 @@ impl Plan {
 #[derive(Clone)]
 pub struct RepeatingTransaction {
     frequency: Frequency,
-    transaction: Transaction,
+    amount: Money,
+    from: String,
+    to: String,
     state: Option<NaiveDate>,
 }
 
@@ -90,14 +91,16 @@ impl RepeatingTransaction {
            -> RepeatingTransaction {
         RepeatingTransaction {
             frequency: frequency,
-            transaction: Transaction::new(amount, from, to),
+            amount: amount,
+            from: from,
+            to: to,
             state: Some(state),
         }
     }
 }
 
 impl Iterator for RepeatingTransaction {
-    type Item = DatedTransaction;
+    type Item = Transaction;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.state {
@@ -109,31 +112,40 @@ impl Iterator for RepeatingTransaction {
                 };
 
                 self.state = next_date;
-                Some(DatedTransaction::new(previous_date, self.transaction.clone()))
+                Some(Transaction::new(self.amount.clone(), self.from.clone(), self.to.clone(), previous_date))
             }
             None => None,
         }
     }
 }
 
-pub struct YearStream {
+pub struct DateStream {
     date: NaiveDate,
+    func: fn(NaiveDate) -> NaiveDate
 }
 
-impl YearStream {
-    pub fn new() -> YearStream {
-        YearStream { date: today() }
+impl DateStream {
+    fn new(func: fn(NaiveDate) -> NaiveDate) -> DateStream {
+        DateStream { date: today(), func: func }
+    }
+
+    fn next_year(previous_date: NaiveDate) -> NaiveDate {
+        NaiveDate::from_ymd(previous_date.year() + 1,
+                                        previous_date.month(),
+                                        previous_date.day())
+    }
+
+    pub fn years() -> DateStream {
+        DateStream::new(DateStream::next_year)
     }
 }
 
-impl Iterator for YearStream {
+impl Iterator for DateStream {
     type Item = NaiveDate;
 
     fn next(&mut self) -> Option<Self::Item> {
         let previous_date = self.date;
-        self.date = NaiveDate::from_ymd(previous_date.year() + 1,
-                                        previous_date.month(),
-                                        previous_date.day());
+        self.date = (self.func)(previous_date);
         Some(previous_date)
     }
 }

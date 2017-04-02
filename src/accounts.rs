@@ -17,7 +17,7 @@ pub enum Accounts {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Account {
-    Simple(SimpleAccount), // TODO derived
+    Simple(SimpleAccount), // TODO derivedaccount
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,6 +42,15 @@ impl Account {
 }
 
 impl Accounts {
+
+    pub fn root() -> Accounts {
+        Accounts::Tree(HashMap::new())
+    }
+
+    pub fn leaf(account: Account) -> Accounts {
+        Accounts::Leaf(account)
+    }
+
     pub fn get(&self, path: &str) -> Option<&Accounts> {
         match self {
             &Accounts::Tree(ref m) => {
@@ -55,6 +64,8 @@ impl Accounts {
             a => if path.len() == 0 { Some(a) } else { None },
         }
     }
+
+    // TODO get_mut
 
     pub fn sum(&self) -> Money {
         match *self {
@@ -119,7 +130,6 @@ impl Accounts {
         }
     }
 
-    // TODO paths() (including intermediate nodes)
     pub fn paths(&self) -> Vec<String> {
         self.paths_internal("")
     }
@@ -172,7 +182,7 @@ impl Accounts {
                     let (path, sub_path) = path.split_at(index);
                     let sub_account = m.get(path)
                         .cloned()
-                        .unwrap_or(Accounts::Tree(HashMap::new()))
+                        .unwrap_or_else(Accounts::root)
                         .create_account(String::from(&sub_path[1..]), account)?;
                     m.insert(String::from(path), sub_account);
                     Ok(Accounts::Tree(m))
@@ -193,16 +203,17 @@ impl Accounts {
         }
     }
 
+    // TODO create_account_unchecked
     // TODO create_account_mut
+    // TODO create_account_mut_unchecked
 
     pub fn deposit(self, path: String, amount: Money) -> Result<Self> {
         match self {
             Accounts::Tree(mut m) => {
                 if let Some(index) = path.find(':') {
                     let (path, sub_path) = path.split_at(index);
-                    // TODO create path if it doesn't exist
                     let new_subaccount = m.get(path).cloned()
-                        .unwrap_or_else(|| Accounts::Tree(HashMap::new()))
+                        .unwrap_or_else(Accounts::root)
                         .deposit(String::from(&sub_path[1..]), amount)?;
                     m.insert(String::from(path), new_subaccount);
                     Ok(Accounts::Tree(m))
@@ -223,13 +234,18 @@ impl Accounts {
         }
     }
 
+    // TODO deposit_unchecked
     // TODO deposit_mut
+    // TODO deposit_mut_unchecked
 
     pub fn withdraw(self, path: String, amount: Money) -> Result<Self> {
         self.deposit(path, -amount)
     }
 
+    // TODO withdraw_unchecked
+
     // TODO withdraw_mut
+    // TODO withdraw_mut_unchecked
 
     pub fn validate(&self) -> Result<()> {
         if let Accounts::Tree(ref m) = *self {
@@ -248,23 +264,48 @@ impl Accounts {
             .deposit(transaction.to, transaction.amount)
     }
 
+    pub fn apply_unchecked(self, transaction: Transaction) -> Self {
+        self.withdraw(transaction.from, transaction.amount.clone()).unwrap()
+            .deposit(transaction.to, transaction.amount).unwrap()
+    }
+
     // TODO apply_mut
+    // TODO apply_mut_unchecked
 }
+
+// TODO impl IntoIterator for Accounts
+// TODO impl std::iter::Extend for Accounts
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transaction {
     pub amount: Money,
     pub from: String,
     pub to: String,
+    pub date: NaiveDate
 }
 
 impl Transaction {
-    pub fn new(amount: Money, from: String, to: String) -> Transaction {
+    pub fn new(amount: Money, from: String, to: String, date: NaiveDate) -> Transaction {
         Transaction {
             amount: amount,
             from: from,
             to: to,
+            date: date
         }
+    }
+}
+
+impl Eq for Transaction {}
+
+impl PartialOrd for Transaction {
+    fn partial_cmp(&self, other: &Transaction) -> Option<Ordering> {
+        self.date.partial_cmp(&other.date)
+    }
+}
+
+impl Ord for Transaction {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.date.cmp(&other.date)
     }
 }
 
@@ -274,7 +315,9 @@ impl fmt::Display for Transaction {
     }
 }
 
-pub struct History<T: Iterator<Item = DatedTransaction> + Clone, D: Iterator<Item = NaiveDate>> {
+// TODO wrap transaction iterators
+
+pub struct History<T: Iterator<Item = Transaction> + Clone, D: Iterator<Item = NaiveDate>> {
     transactions: T,
     dates: D,
     consumed: usize,
@@ -282,7 +325,7 @@ pub struct History<T: Iterator<Item = DatedTransaction> + Clone, D: Iterator<Ite
 }
 
 impl<T, D> History<T, D>
-    where T: Iterator<Item = DatedTransaction> + Clone,
+    where T: Iterator<Item = Transaction> + Clone,
           D: Iterator<Item = NaiveDate>
 {
     pub fn new(state: (NaiveDate, Accounts), transactions: T, dates: D) -> History<T, D> {
@@ -297,7 +340,7 @@ impl<T, D> History<T, D>
 
 // this assumes that users have validated the transactions first :)
 impl<T, D> Iterator for History<T, D>
-    where T: Iterator<Item = DatedTransaction> + Clone,
+    where T: Iterator<Item = Transaction> + Clone,
           D: Iterator<Item = NaiveDate>
 {
     type Item = (NaiveDate, Accounts);
@@ -309,55 +352,18 @@ impl<T, D> Iterator for History<T, D>
                 let next_transactions = self.transactions
                     .clone()
                     .skip(self.consumed)
-                    .take_while(|ref dt| dt.date <= next_date)
-                    .map(|dt| dt.transaction)
+                    .take_while(|ref t| t.date <= next_date)
                     .collect::<Vec<_>>();
                 self.consumed += next_transactions.len();
 
                 // calculate next state
                 self.state = (next_date,
                               next_transactions.into_iter()
-                    .fold(self.state.1.clone(),
-                          |accounts, transaction| accounts.apply(transaction).unwrap()));
+                    .fold(self.state.1.clone(), Accounts::apply_unchecked));
                 Some(self.state.clone())
             }
             None => None,
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct DatedTransaction {
-    date: NaiveDate,
-    transaction: Transaction,
-}
-
-impl DatedTransaction {
-    pub fn new(date: NaiveDate, transaction: Transaction) -> DatedTransaction {
-        DatedTransaction {
-            date: date,
-            transaction: transaction,
-        }
-    }
-}
-
-impl PartialOrd for DatedTransaction {
-    fn partial_cmp(&self, other: &DatedTransaction) -> Option<Ordering> {
-        self.date.partial_cmp(&other.date)
-    }
-}
-
-impl Eq for DatedTransaction {}
-
-impl Ord for DatedTransaction {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.date.cmp(&other.date)
-    }
-}
-
-impl fmt::Display for DatedTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} => {}", self.date, self.transaction)
     }
 }
 
