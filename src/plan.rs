@@ -6,24 +6,13 @@ use chrono;
 use money::Money;
 use accounts::*;
 use iterators::*;
+use errors::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub accounts: Accounts,
     pub income: HashMap<String, Income>,
     pub rules: HashMap<String, Rule>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Accounts {
-    Tree(HashMap<String, Accounts>),
-    Leaf(Account),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Account {
-    pub amount: Money,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -57,64 +46,6 @@ pub struct Transfer {
 fn today() -> NaiveDate {
     let local = Local::now();
     NaiveDate::from_ymd(local.year(), local.month(), local.day())
-}
-
-impl Accounts {
-    // path has colons
-    pub fn get(&self, path: &str) -> Option<&Accounts> {
-        match self {
-            &Accounts::Tree(ref m) => {
-                if let Some(index) = path.find(':') {
-                    let (account, sub_account) = path.split_at(index);
-                    m.get(account).and_then(|a| a.get(&sub_account[1..]))
-                } else {
-                    m.get(path)
-                }
-            }
-            a => if path.len() == 0 { Some(a) } else { None },
-        }
-    }
-
-    // sum a tree of accounts
-    pub fn sum(&self) -> Money {
-        match *self {
-            Accounts::Tree(ref m) => {
-                let mut result = Money::from(0);
-                for (_, account) in m {
-                    result += account.sum();
-                }
-                result
-            }
-            Accounts::Leaf(ref a) => a.amount.clone(),
-        }
-    }
-
-    // get a list of colon separated names
-    pub fn get_names(&self) -> Vec<String> {
-        self.get_names_internal("")
-    }
-
-    fn get_names_internal(&self, path: &str) -> Vec<String> {
-        match *self {
-            Accounts::Tree(ref m) => {
-                let mut result = Vec::new();
-                if path.len() > 0 {
-                    result.push(String::from(path));
-                }
-                for (name, account) in m {
-                    result.extend(account.get_names_internal(&format!("{}{}",
-                                                                      if path.len() == 0 {
-                                                                          String::new()
-                                                                      } else {
-                                                                          format!("{}:", path)
-                                                                      },
-                                                                      name)))
-                }
-                result
-            }
-            Accounts::Leaf(_) => vec![String::from(path)],
-        }
-    }
 }
 
 impl Plan {

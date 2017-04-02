@@ -1,3 +1,5 @@
+#![recursion_limit = "1024"]
+
 #[macro_use]
 extern crate clap;
 extern crate serde;
@@ -7,11 +9,14 @@ extern crate serde_yaml;
 extern crate chrono;
 extern crate prettytable;
 extern crate rugflo;
+#[macro_use]
+extern crate error_chain;
 
 mod money;
 mod plan;
 mod accounts;
 mod iterators;
+mod errors;
 
 use std::fs::File;
 use clap::{Arg, App, SubCommand};
@@ -20,6 +25,7 @@ use prettytable::row::Row;
 use prettytable::cell::Cell;
 
 use plan::*;
+use errors::*;
 
 fn print_forecast(plan: Plan, years: usize) {
     let mut table = Table::new();
@@ -39,8 +45,7 @@ fn print_forecast(plan: Plan, years: usize) {
     table.printstd();
 }
 
-fn main() {
-
+fn run() -> Result<()> {
     let matches = App::new("financial-planner")
         .version("0.1")
         .author("Nicholas D. <nickdujay@gmail.com>")
@@ -57,15 +62,17 @@ fn main() {
                 .index(1)))
         .get_matches();
 
-    let input_file = File::open(matches.value_of("INPUT").unwrap_or("input.yaml")).unwrap();
-    let plan: Plan = serde_yaml::from_reader(input_file).unwrap();
+    let input_file = File::open(matches.value_of("input").unwrap_or("input.yaml"))?;
+    let plan: Plan = serde_yaml::from_reader(input_file)?;
 
-    for name in plan.accounts.get_names() {
-        println!("{} has value {}", name, plan.accounts.get(&name).unwrap().sum());
-    }
+    plan.accounts.validate()?;
 
     if let Some(matches) = matches.subcommand_matches("forecast") {
         let years = value_t!(matches, "years", usize).unwrap_or(25);
         print_forecast(plan, years);
     }
+
+    Ok(())
 }
+
+quick_main!(run);

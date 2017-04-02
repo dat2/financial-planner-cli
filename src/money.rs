@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Neg};
 use std::iter::Sum;
 use std::convert::From;
 
@@ -82,6 +82,14 @@ impl Sub for Money {
 impl SubAssign for Money {
     fn sub_assign(&mut self, other: Money) {
         self.float -= other.float;
+    }
+}
+
+impl Neg for Money {
+    type Output = Money;
+
+    fn neg(self) -> Self::Output {
+        Money { float: -self.float }
     }
 }
 
