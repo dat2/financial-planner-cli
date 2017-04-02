@@ -13,7 +13,7 @@ use combine::primitives::{State, Stream, ParseResult};
 pub enum Expr {
     Id(String),
     Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>)
+    Sub(Box<Expr>, Box<Expr>),
 }
 
 impl fmt::Display for Expr {
@@ -23,7 +23,7 @@ impl fmt::Display for Expr {
         match *self {
             Id(ref s) => write!(f, "{}", s),
             Add(ref l, ref r) => write!(f, "{} + {}", l, r),
-            Sub(ref l, ref r) => write!(f, "{} - {}", l, r)
+            Sub(ref l, ref r) => write!(f, "{} - {}", l, r),
         }
     }
 }
@@ -69,21 +69,20 @@ pub struct Expression<I>(PhantomData<fn(I) -> I>);
 type ExprParser<O, I> = FnParser<I, fn(I) -> ParseResult<O, I>>;
 
 fn fn_parser<O, I>(f: fn(I) -> ParseResult<O, I>) -> ExprParser<O, I>
-  where I: Stream<Item = char>
+    where I: Stream<Item = char>
 {
-  parser(f)
+    parser(f)
 }
 
 impl<I> Expression<I>
-  where I: Stream<Item = char>
+    where I: Stream<Item = char>
 {
-
     fn id() -> ExprParser<Expr, I> {
         fn_parser(Expression::<I>::id_)
     }
 
     fn id_(input: I) -> ParseResult<Expr, I>
-        where I: Stream<Item=char>
+        where I: Stream<Item = char>
     {
         many1(letter().or(char(':')))
             .skip(spaces())
@@ -96,7 +95,7 @@ impl<I> Expression<I>
     }
 
     fn add_(input: I) -> ParseResult<Expr, I>
-        where I: Stream<Item=char>
+        where I: Stream<Item = char>
     {
         let follow = char('+')
             .skip(spaces())
@@ -112,7 +111,7 @@ impl<I> Expression<I>
     }
 
     fn sub_(input: I) -> ParseResult<Expr, I>
-        where I: Stream<Item=char>
+        where I: Stream<Item = char>
     {
         let follow = char('-')
             .skip(spaces())
@@ -128,12 +127,64 @@ impl<I> Expression<I>
     }
 
     fn expr_(input: I) -> ParseResult<Expr, I>
-        where I: Stream<Item=char>
+        where I: Stream<Item = char>
     {
         // TODO prevent 'assets -' invalid expressions
         try(Expression::add())
             .or(try(Expression::sub()))
             .or(Expression::id())
             .parse_stream(input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! assert_successful_parse {
+        // base case
+        () => {};
+
+        ($parser:ident, $input:expr, $expected:expr) => {
+          let result = Expression::$parser().parse(State::new($input)).map(|x| x.0);
+          assert_eq!(result, Ok($expected))
+        };
+      }
+
+    #[test]
+    fn test_parse_account_name() {
+        assert_successful_parse!(id, "assets", Expr::Id(String::from("assets")));
+    }
+
+    #[test]
+    fn test_parse_account_name_with_colons() {
+        assert_successful_parse!(id, "assets:stocks", Expr::Id(String::from("assets:stocks")));
+    }
+
+    #[test]
+    fn test_parse_add() {
+        assert_successful_parse!(add,
+                                 "assets:stocks + assets:bank",
+                                 Expr::Add(Box::new(Expr::Id(String::from("assets:stocks"))),
+                                           Box::new(Expr::Id(String::from("assets:bank")))));
+    }
+
+    #[test]
+    fn test_parse_subtract() {
+        assert_successful_parse!(sub,
+                                 "assets - liabilities",
+                                 Expr::Sub(Box::new(Expr::Id(String::from("assets"))),
+                                           Box::new(Expr::Id(String::from("liabilities")))));
+    }
+
+    #[test]
+    fn test_parse_complicated_expression() {
+        assert_successful_parse!(add,
+                                 "assets:stocks + assets:bank - liabilities:debt",
+                                 Expr::Add(
+                                    Box::new(Expr::Id(String::from("assets:stocks"))),
+                                    Box::new(Expr::Sub(
+                                        Box::new(Expr::Id(String::from("assets:bank"))),
+                                        Box::new(Expr::Id(String::from("liabilities:debt")))))));
     }
 }

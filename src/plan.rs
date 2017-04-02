@@ -11,7 +11,7 @@ use expression::*;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub accounts: Accounts,
-    pub rules: HashMap<String, Rule>
+    pub rules: HashMap<String, Rule>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -113,7 +113,10 @@ impl Iterator for RepeatingTransaction {
                 };
 
                 self.state = next_date;
-                Some(Transaction::new(self.amount.clone(), self.from.clone(), self.to.clone(), previous_date))
+                Some(Transaction::new(self.amount.clone(),
+                                      self.from.clone(),
+                                      self.to.clone(),
+                                      previous_date))
             }
             None => None,
         }
@@ -122,18 +125,21 @@ impl Iterator for RepeatingTransaction {
 
 pub struct DateStream {
     date: NaiveDate,
-    func: fn(NaiveDate) -> NaiveDate
+    func: fn(NaiveDate) -> NaiveDate,
 }
 
 impl DateStream {
     fn new(func: fn(NaiveDate) -> NaiveDate) -> DateStream {
-        DateStream { date: today(), func: func }
+        DateStream {
+            date: today(),
+            func: func,
+        }
     }
 
     fn next_year(previous_date: NaiveDate) -> NaiveDate {
         NaiveDate::from_ymd(previous_date.year() + 1,
-                                        previous_date.month(),
-                                        previous_date.day())
+                            previous_date.month(),
+                            previous_date.day())
     }
 
     pub fn years() -> DateStream {

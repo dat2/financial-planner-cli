@@ -20,7 +20,7 @@ pub enum Accounts {
 #[serde(untagged)]
 pub enum Account {
     Simple(SimpleAccount),
-    Derived(DerivedAccount)
+    Derived(DerivedAccount),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,14 +30,20 @@ pub struct SimpleAccount {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DerivedAccount {
-    pub expression: Expr
+    pub expression: Expr,
 }
 
 fn eval(expr: &Expr, root: &Accounts) -> Option<Money> {
     match *expr {
         Expr::Id(ref name) => root.get(name).map(Accounts::sum),
-        Expr::Add(ref left, ref right) => eval(left, root).and_then(|left_val| eval(right, root).map(|right_val| left_val + right_val)),
-        Expr::Sub(ref left, ref right) => eval(left, root).and_then(|left_val| eval(right, root).map(|right_val| left_val - right_val))
+        Expr::Add(ref left, ref right) => {
+            eval(left, root)
+                .and_then(|left_val| eval(right, root).map(|right_val| left_val + right_val))
+        }
+        Expr::Sub(ref left, ref right) => {
+            eval(left, root)
+                .and_then(|left_val| eval(right, root).map(|right_val| left_val - right_val))
+        }
     }
 }
 
@@ -45,13 +51,12 @@ impl Account {
     pub fn amount(&self) -> Money {
         match *self {
             Account::Simple(ref s) => s.amount.clone(),
-            Account::Derived(ref acc) => Money::zero()
+            Account::Derived(ref acc) => Money::zero(),
         }
     }
 }
 
 impl Accounts {
-
     pub fn root() -> Accounts {
         Accounts::Tree(HashMap::new())
     }
@@ -221,7 +226,8 @@ impl Accounts {
             Accounts::Tree(mut m) => {
                 if let Some(index) = path.find(':') {
                     let (path, sub_path) = path.split_at(index);
-                    let new_subaccount = m.get(path).cloned()
+                    let new_subaccount = m.get(path)
+                        .cloned()
                         .unwrap_or_else(Accounts::root)
                         .deposit(String::from(&sub_path[1..]), amount)?;
                     m.insert(String::from(path), new_subaccount);
@@ -240,7 +246,9 @@ impl Accounts {
                 s.amount += amount;
                 Ok(Accounts::Leaf(Account::Simple(s)))
             }
-            Accounts::Leaf(Account::Derived(_)) => Err(ErrorKind::InvalidDeposit(path, amount.to_string()).into())
+            Accounts::Leaf(Account::Derived(_)) => {
+                Err(ErrorKind::InvalidDeposit(path, amount.to_string()).into())
+            }
         }
     }
 
@@ -276,8 +284,10 @@ impl Accounts {
     }
 
     pub fn apply_unchecked(self, transaction: Transaction) -> Self {
-        self.withdraw(transaction.from, transaction.amount.clone()).unwrap()
-            .deposit(transaction.to, transaction.amount).unwrap()
+        self.withdraw(transaction.from, transaction.amount.clone())
+            .unwrap()
+            .deposit(transaction.to, transaction.amount)
+            .unwrap()
     }
 
     // TODO apply_mut
@@ -286,10 +296,11 @@ impl Accounts {
     pub fn eval_unchecked(self) -> HashMap<String, Money> {
         let mut result = HashMap::new();
         for (name, account) in self.clone().flatten_with_path() {
-            result.insert(name, match account {
-                Account::Simple(s) => s.amount,
-                Account::Derived(d) => eval(&d.expression, &self).unwrap()
-            });
+            result.insert(name,
+                          match account {
+                              Account::Simple(s) => s.amount,
+                              Account::Derived(d) => eval(&d.expression, &self).unwrap(),
+                          });
         }
         result
     }
@@ -303,7 +314,7 @@ pub struct Transaction {
     pub amount: Money,
     pub from: String,
     pub to: String,
-    pub date: NaiveDate
+    pub date: NaiveDate,
 }
 
 impl Transaction {
@@ -312,7 +323,7 @@ impl Transaction {
             amount: amount,
             from: from,
             to: to,
-            date: date
+            date: date,
         }
     }
 }
