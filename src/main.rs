@@ -30,13 +30,22 @@ use errors::*;
 fn print_forecast(plan: Plan, years: usize) {
     let mut table = Table::new();
 
+    let mut header = Vec::new();
+    header.push(Cell::new("Date"));
+    for name in plan.accounts.get_account_names() {
+        header.push(Cell::new(&name));
+    }
+    table.add_row(Row::new(header));
+
     for (date, moment) in plan.history(YearStream::new().take(years)) {
         let mut result = Vec::new();
 
         result.push(Cell::new(&format!("{}", date)));
 
-        for (name, value) in moment.accounts {
-            result.push(Cell::new(&format!("{}: {}", name, value)));
+        for (name, account) in moment.flatten_with_path() {
+            if name.find("income:").is_none() {
+                result.push(Cell::new(&account.amount().to_string()));
+            }
         }
 
         table.add_row(Row::new(result));
@@ -64,7 +73,6 @@ fn run() -> Result<()> {
 
     let input_file = File::open(matches.value_of("input").unwrap_or("input.yaml"))?;
     let plan: Plan = serde_yaml::from_reader(input_file)?;
-
     plan.accounts.validate()?;
 
     if let Some(matches) = matches.subcommand_matches("forecast") {

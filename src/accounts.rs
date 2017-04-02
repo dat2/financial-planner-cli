@@ -15,12 +15,33 @@ pub enum Accounts {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Account {
+#[serde(untagged)]
+pub enum Account {
+    Simple(SimpleAccount), // TODO derived
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SimpleAccount {
     pub amount: Money,
 }
 
+impl Account {
+    pub fn amount(&self) -> Money {
+        match *self {
+            Account::Simple(ref s) => s.amount.clone(),
+        }
+    }
+
+    pub fn add(&mut self, amount: Money) {
+        match *self {
+            Account::Simple(ref mut s) => {
+                s.amount += amount;
+            }
+        }
+    }
+}
+
 impl Accounts {
-    // path has colons
     pub fn get(&self, path: &str) -> Option<&Accounts> {
         match self {
             &Accounts::Tree(ref m) => {
@@ -35,7 +56,6 @@ impl Accounts {
         }
     }
 
-    // sum a tree of accounts
     pub fn sum(&self) -> Money {
         match *self {
             Accounts::Tree(ref m) => {
@@ -45,7 +65,7 @@ impl Accounts {
                 }
                 result
             }
-            Accounts::Leaf(ref a) => a.amount.clone(),
+            Accounts::Leaf(ref a) => a.amount(),
         }
     }
 
@@ -123,7 +143,6 @@ impl Accounts {
         }
     }
 
-    // get a list of colon separated names
     pub fn get_account_names(&self) -> Vec<String> {
         self.clone()
             .fold_with_path(Vec::new(), |mut vec, path, _| {
@@ -132,7 +151,6 @@ impl Accounts {
             })
     }
 
-    // get all the leaf accounts
     pub fn flatten(self) -> Vec<Account> {
         self.fold(Vec::new(), |mut vec, account| {
             vec.push(account);
@@ -175,41 +193,49 @@ impl Accounts {
         }
     }
 
+    // TODO create_account_mut
+
     pub fn deposit(self, path: String, amount: Money) -> Result<Self> {
         match self {
             Accounts::Tree(mut m) => {
                 if let Some(index) = path.find(':') {
                     let (path, sub_path) = path.split_at(index);
-                    let new_subaccount = m.get(path)
-                        .cloned()
-                        .ok_or(ErrorKind::InvalidAccountName(String::from(path)).into())
-                        .and_then(|sub_account| sub_account.deposit(String::from(&sub_path[1..]), amount))?;
+                    // TODO create path if it doesn't exist
+                    let new_subaccount = m.get(path).cloned()
+                        .unwrap_or_else(|| Accounts::Tree(HashMap::new()))
+                        .deposit(String::from(&sub_path[1..]), amount)?;
                     m.insert(String::from(path), new_subaccount);
                     Ok(Accounts::Tree(m))
                 } else if m.contains_key(&path) {
-                    let new_subaccount = m.get(&path).cloned().unwrap().deposit(path.clone(), amount)?;
+                    let new_subaccount =
+                        m.get(&path).cloned().unwrap().deposit(path.clone(), amount)?;
                     m.insert(String::from(path), new_subaccount);
                     Ok(Accounts::Tree(m))
                 } else {
-                    Accounts::Tree(m).create_account(path, Account { amount: amount })
+                    Accounts::Tree(m)
+                        .create_account(path, Account::Simple(SimpleAccount { amount: amount }))
                 }
-            },
+            }
             Accounts::Leaf(mut account) => {
-                account.amount += amount;
+                account.add(amount);
                 Ok(Accounts::Leaf(account))
             }
         }
     }
 
+    // TODO deposit_mut
+
     pub fn withdraw(self, path: String, amount: Money) -> Result<Self> {
         self.deposit(path, -amount)
     }
+
+    // TODO withdraw_mut
 
     pub fn validate(&self) -> Result<()> {
         if let Accounts::Tree(ref m) = *self {
             for (path, account) in m {
                 if let Some(_) = path.find(':') {
-                    return Err(ErrorKind::InvalidAccountName(path.clone()).into())
+                    return Err(ErrorKind::InvalidAccountName(path.clone()).into());
                 }
                 account.validate()?;
             }
@@ -217,12 +243,12 @@ impl Accounts {
         Ok(())
     }
 
-    // TODO create_account_mut
+    pub fn apply(self, transaction: Transaction) -> Result<Self> {
+        self.withdraw(transaction.from, transaction.amount.clone())?
+            .deposit(transaction.to, transaction.amount)
+    }
 
-    // TODO deposit_mut
-
-    // TODO withdraw_mut
-
+    // TODO apply_mut
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -248,45 +274,18 @@ impl fmt::Display for Transaction {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Moment {
-    pub accounts: HashMap<String, Money>,
-}
-
-impl Moment {
-    pub fn new(accounts: HashMap<String, Money>) -> Moment {
-        Moment { accounts: accounts }
-    }
-
-    pub fn push_transaction(self, transaction: Transaction) -> Self {
-        let mut next = self.accounts.clone();
-
-        {
-            let mut from = next.entry(transaction.from).or_insert(Money::from(0));
-            *from -= transaction.amount.clone();
-        }
-
-        {
-            let mut to = next.entry(transaction.to).or_insert(Money::from(0));
-            *to += transaction.amount.clone();
-        }
-
-        Moment::new(next)
-    }
-}
-
 pub struct History<T: Iterator<Item = DatedTransaction> + Clone, D: Iterator<Item = NaiveDate>> {
     transactions: T,
     dates: D,
     consumed: usize,
-    state: (NaiveDate, Moment),
+    state: (NaiveDate, Accounts),
 }
 
 impl<T, D> History<T, D>
     where T: Iterator<Item = DatedTransaction> + Clone,
           D: Iterator<Item = NaiveDate>
 {
-    pub fn new(state: (NaiveDate, Moment), transactions: T, dates: D) -> History<T, D> {
+    pub fn new(state: (NaiveDate, Accounts), transactions: T, dates: D) -> History<T, D> {
         History {
             transactions: transactions,
             dates: dates,
@@ -296,11 +295,12 @@ impl<T, D> History<T, D>
     }
 }
 
+// this assumes that users have validated the transactions first :)
 impl<T, D> Iterator for History<T, D>
     where T: Iterator<Item = DatedTransaction> + Clone,
           D: Iterator<Item = NaiveDate>
 {
-    type Item = (NaiveDate, Moment);
+    type Item = (NaiveDate, Accounts);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.dates.next() {
@@ -317,7 +317,8 @@ impl<T, D> Iterator for History<T, D>
                 // calculate next state
                 self.state = (next_date,
                               next_transactions.into_iter()
-                    .fold(self.state.1.clone(), Moment::push_transaction));
+                    .fold(self.state.1.clone(),
+                          |accounts, transaction| accounts.apply(transaction).unwrap()));
                 Some(self.state.clone())
             }
             None => None,

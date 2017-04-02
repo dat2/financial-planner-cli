@@ -2,23 +2,19 @@ accounts:
     assets:
         stocks:
             amount: 5000
-        other:
-            chequing:
-                amount: 600
-            savings:
-                amount: 300
+        chequing:
+            amount: 600
+        savings:
+            amount: 300
     liabilities:
-        'credit card debt':
+        'credit card':
             amount: 1000
-        'other debt':
+        other:
             amount: 2000
-income:
-    'BiWeekly Pay Cheque':
-        start_date: '2017-01-06'
-        amount: 100
-        frequency: BiWeekly
 rules:
     'Deposit Pay Cheque into Stocks':
         amount: 100
-        from: 'BiWeekly Pay Cheque'
-        to: 'assets:Stocks'
+        from: 'income:paycheque'
+        to: 'assets:stocks'
+        frequency: BiWeekly
+        start_date: '2017-01-06'
