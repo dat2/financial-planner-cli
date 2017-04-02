@@ -12,3 +12,4 @@ serde_yaml = "0.6"
 chrono = { version = "0.3", features = ["serde"] }
 prettytable-rs = "^0.6"
 error-chain = "0.10"
+combine = "2"

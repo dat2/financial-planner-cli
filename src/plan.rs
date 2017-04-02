@@ -6,11 +6,12 @@ use chrono;
 use money::Money;
 use accounts::*;
 use iterators::*;
+use expression::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub accounts: Accounts,
-    pub rules: HashMap<String, Rule>,
+    pub rules: HashMap<String, Rule>
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

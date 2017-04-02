@@ -1,11 +1,13 @@
 use std::collections::HashMap;
-use std::iter::IntoIterator;
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
+use std::iter::IntoIterator;
+use std::rc::Rc;
 use chrono::prelude::*;
 
 use money::Money;
 use errors::*;
+use expression::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -17,7 +19,8 @@ pub enum Accounts {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Account {
-    Simple(SimpleAccount), // TODO derivedaccount
+    Simple(SimpleAccount),
+    Derived(DerivedAccount)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -25,18 +28,24 @@ pub struct SimpleAccount {
     pub amount: Money,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DerivedAccount {
+    pub expression: Expr
+}
+
+fn eval(expr: &Expr, root: &Accounts) -> Option<Money> {
+    match *expr {
+        Expr::Id(ref name) => root.get(name).map(Accounts::sum),
+        Expr::Add(ref left, ref right) => eval(left, root).and_then(|left_val| eval(right, root).map(|right_val| left_val + right_val)),
+        Expr::Sub(ref left, ref right) => eval(left, root).and_then(|left_val| eval(right, root).map(|right_val| left_val - right_val))
+    }
+}
+
 impl Account {
     pub fn amount(&self) -> Money {
         match *self {
             Account::Simple(ref s) => s.amount.clone(),
-        }
-    }
-
-    pub fn add(&mut self, amount: Money) {
-        match *self {
-            Account::Simple(ref mut s) => {
-                s.amount += amount;
-            }
+            Account::Derived(ref acc) => Money::zero()
         }
     }
 }
@@ -227,10 +236,11 @@ impl Accounts {
                         .create_account(path, Account::Simple(SimpleAccount { amount: amount }))
                 }
             }
-            Accounts::Leaf(mut account) => {
-                account.add(amount);
-                Ok(Accounts::Leaf(account))
+            Accounts::Leaf(Account::Simple(mut s)) => {
+                s.amount += amount;
+                Ok(Accounts::Leaf(Account::Simple(s)))
             }
+            Accounts::Leaf(Account::Derived(_)) => Err(ErrorKind::InvalidDeposit(path, amount.to_string()).into())
         }
     }
 
@@ -256,6 +266,7 @@ impl Accounts {
                 account.validate()?;
             }
         }
+        // TODO validate derived accounts makes sense
         Ok(())
     }
 
@@ -271,6 +282,17 @@ impl Accounts {
 
     // TODO apply_mut
     // TODO apply_mut_unchecked
+
+    pub fn eval_unchecked(self) -> HashMap<String, Money> {
+        let mut result = HashMap::new();
+        for (name, account) in self.clone().flatten_with_path() {
+            result.insert(name, match account {
+                Account::Simple(s) => s.amount,
+                Account::Derived(d) => eval(&d.expression, &self).unwrap()
+            });
+        }
+        result
+    }
 }
 
 // TODO impl IntoIterator for Accounts

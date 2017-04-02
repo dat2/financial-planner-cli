@@ -11,12 +11,14 @@ extern crate prettytable;
 extern crate rugflo;
 #[macro_use]
 extern crate error_chain;
+extern crate combine;
 
 mod money;
 mod plan;
 mod accounts;
 mod iterators;
 mod errors;
+mod expression;
 
 use std::fs::File;
 use clap::{Arg, App, SubCommand};
@@ -32,7 +34,9 @@ fn print_forecast(plan: Plan, years: usize) {
 
     let mut header = Vec::new();
     header.push(Cell::new("Date"));
-    for name in plan.accounts.get_account_names() {
+
+    let account_names = plan.accounts.get_account_names();
+    for name in &account_names {
         header.push(Cell::new(&name));
     }
     table.add_row(Row::new(header));
@@ -42,10 +46,9 @@ fn print_forecast(plan: Plan, years: usize) {
 
         result.push(Cell::new(&format!("{}", date)));
 
-        for (name, account) in moment.flatten_with_path() {
-            if name.find("income:").is_none() {
-                result.push(Cell::new(&account.amount().to_string()));
-            }
+        let evaluated = moment.eval_unchecked();
+        for name in &account_names {
+            result.push(Cell::new(evaluated[name].to_string().as_str()));
         }
 
         table.add_row(Row::new(result));

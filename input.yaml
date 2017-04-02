@@ -1,20 +1,25 @@
 accounts:
     assets:
-        stocks:
+        rrsp:
             amount: 5000
-        chequing:
-            amount: 600
-        savings:
-            amount: 300
+        bank:
+            chequing:
+                amount: 600
     liabilities:
         'credit card':
             amount: 1000
-        other:
-            amount: 2000
+    net:
+        expression: 'assets - liabilities'
 rules:
-    'Deposit Pay Cheque into Stocks':
+    'Deposit Pay Cheque into Chequing Account':
         amount: 100
         from: 'income:paycheque'
-        to: 'assets:stocks'
+        to: 'assets:bank:chequing'
+        frequency: BiWeekly
+        start_date: '2017-01-06'
+    'Deposit Chequing Account Into RRSP':
+        amount: 50
+        from: 'assets:bank:chequing'
+        to: 'assets:rrsp'
         frequency: BiWeekly
         start_date: '2017-01-06'
