@@ -400,4 +400,12 @@ impl<T, D> Iterator for History<T, D>
     }
 }
 
-// TODO write tests for the accounts object
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sum() {
+        // TODO
+    }
+}
