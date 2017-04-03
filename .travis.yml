@@ -8,6 +8,7 @@ rust:
 
 before_install:
   - sudo apt-get update
+  - shopt -s extglob
 
 addons:
   apt:
@@ -30,7 +31,6 @@ after_success: |
   sudo make install &&
   cd ../.. &&
   rm -rf kcov-master &&
-  shopt -s extglob &&
   for file in target/debug/financial_planner_cli-!(*.d); do mkdir -p "target/cov/$(basename $file)"; kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
   bash <(curl -s https://codecov.io/bash) &&
   echo "Uploaded code coverage"
