@@ -18,9 +18,8 @@ impl Money {
         Money { float: Float::from((0, 64)) }
     }
 
-    // TODO multiply by percentage
-    pub fn mul_percentage(&mut self, percentage: f64) {
-        self.float *= Float::from((percentage, 64));
+    pub fn mul_percent(self, percentage: Float) -> Money {
+        Money { float: self.float * percentage }
     }
 }
 

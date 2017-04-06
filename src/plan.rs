@@ -6,7 +6,6 @@ use chrono;
 use money::Money;
 use accounts::*;
 use iterators::*;
-use expression::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
@@ -17,15 +16,25 @@ pub struct Plan {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Rule {
-    Repeating(Transfer),
+    RepeatingMoney(MoneyTransfer),
+    CompoundingInterest(CompoundingInterest),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Transfer {
+pub struct MoneyTransfer {
     pub amount: Money,
     pub from: String,
     pub to: String,
     pub frequency: Frequency,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CompoundingInterest {
+    pub percent: f64,
+    pub account: String,
+    pub period: Frequency,
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
 }
@@ -48,21 +57,14 @@ impl Plan {
 
         for (_, rule) in &self.rules {
             match *rule {
-                Rule::Repeating(ref t) => {
-                    result.push(self.repeating_transfer(t.clone()));
+                Rule::RepeatingMoney(ref t) => {
+                    result.push(RepeatingTransaction::from(t.clone()));
                 }
+                Rule::CompoundingInterest(ref t) => {}
             }
         }
 
         SortedIterator::from_iter(result.into_iter())
-    }
-
-    fn repeating_transfer(&self, transfer: Transfer) -> RepeatingTransaction {
-        RepeatingTransaction::new(transfer.frequency,
-                                  transfer.amount,
-                                  transfer.from,
-                                  transfer.to,
-                                  transfer.start_date.unwrap_or(today()))
     }
 
     pub fn history<D: Iterator<Item = NaiveDate>>
@@ -77,26 +79,36 @@ impl Plan {
 #[derive(Clone)]
 pub struct RepeatingTransaction {
     frequency: Frequency,
-    amount: Money,
+    amount: Amount,
     from: String,
     to: String,
     state: Option<NaiveDate>,
 }
 
 impl RepeatingTransaction {
-    fn new(frequency: Frequency,
-           amount: Money,
-           from: String,
-           to: String,
-           state: NaiveDate)
-           -> RepeatingTransaction {
+    fn new<T: Into<Amount>>(frequency: Frequency,
+                            amount: T,
+                            from: String,
+                            to: String,
+                            state: NaiveDate)
+                            -> RepeatingTransaction {
         RepeatingTransaction {
             frequency: frequency,
-            amount: amount,
+            amount: amount.into(),
             from: from,
             to: to,
             state: Some(state),
         }
+    }
+}
+
+impl From<MoneyTransfer> for RepeatingTransaction {
+    fn from(transfer: MoneyTransfer) -> RepeatingTransaction {
+        RepeatingTransaction::new(transfer.frequency,
+                                  transfer.amount,
+                                  transfer.from,
+                                  transfer.to,
+                                  transfer.start_date.unwrap_or_else(today))
     }
 }
 
@@ -113,7 +125,13 @@ impl Iterator for RepeatingTransaction {
                 };
 
                 self.state = next_date;
-                Some(Transaction::new(self.amount.clone(),
+                trace!("RepeatingTransaction next state {}",
+                               Transaction::new(Amount::from(self.amount.clone()),
+                                                self.from.clone(),
+                                                self.to.clone(),
+                                                previous_date));
+
+                Some(Transaction::new(Amount::from(self.amount.clone()),
                                       self.from.clone(),
                                       self.to.clone(),
                                       previous_date))

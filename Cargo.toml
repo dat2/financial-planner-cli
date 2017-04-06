@@ -13,3 +13,5 @@ chrono = { version = "0.3", features = ["serde"] }
 prettytable-rs = "^0.6"
 error-chain = "0.10"
 combine = "2"
+log = "0.3"
+env_logger = "0.4"

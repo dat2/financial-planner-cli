@@ -4,6 +4,7 @@ error_chain! {
         Fmt(::std::fmt::Error);
         Io(::std::io::Error);
         SerdeYaml(::serde_yaml::Error);
+        SetLog(::log::SetLoggerError);
     }
 
     errors {
@@ -19,5 +20,6 @@ error_chain! {
             description("invalid deposit, the account is a derived account")
             display("invalid deposit of {} to {}, {1} is a derived account", amount, path)
         }
+        UnwrapNode
     }
 }

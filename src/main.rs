@@ -12,6 +12,9 @@ extern crate rugflo;
 #[macro_use]
 extern crate error_chain;
 extern crate combine;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 mod money;
 mod plan;
@@ -29,7 +32,7 @@ use prettytable::cell::Cell;
 use plan::*;
 use errors::*;
 
-fn print_forecast(plan: Plan, years: usize) {
+fn print_forecast(plan: Plan, years: usize) -> Result<()> {
     let mut table = Table::new();
 
     let mut header = Vec::new();
@@ -46,18 +49,21 @@ fn print_forecast(plan: Plan, years: usize) {
 
         result.push(Cell::new(&format!("{}", date)));
 
-        let evaluated = moment.eval_unchecked();
+        let evaluated = moment.eval()?;
         for name in &account_names {
-            result.push(Cell::new(evaluated[name].to_string().as_str()));
+            result.push(Cell::new(&format!("{}", evaluated[name])));
         }
 
         table.add_row(Row::new(result));
     }
 
     table.printstd();
+    Ok(())
 }
 
 fn run() -> Result<()> {
+    env_logger::init()?;
+
     let matches = App::new("financial-planner")
         .version("0.1")
         .author("Nicholas D. <nickdujay@gmail.com>")
@@ -80,7 +86,7 @@ fn run() -> Result<()> {
 
     if let Some(matches) = matches.subcommand_matches("forecast") {
         let years = value_t!(matches, "years", usize).unwrap_or(25);
-        print_forecast(plan, years);
+        print_forecast(plan, years)?;
     }
 
     Ok(())
