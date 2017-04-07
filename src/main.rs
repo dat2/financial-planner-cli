@@ -46,7 +46,7 @@ fn print_forecast(plan: &Plan, years: usize) -> Result<()> {
     }
     table.add_row(Row::new(header));
 
-    for (date, moment) in plan.history(DateStream::years(None).take(years)) {
+    for (date, moment) in plan.history(DateStream::yearly(None).take(years)) {
         let mut result = Vec::new();
 
         result.push(Cell::new(&format!("{}", date)));

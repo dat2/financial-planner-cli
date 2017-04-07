@@ -41,6 +41,7 @@ pub struct CompoundingInterest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Frequency {
+    Annually,
     Monthly,
     BiWeekly,
     Once,
@@ -156,6 +157,7 @@ impl InterestStream {
 
 fn interest_per_period(interest: f64, period: &Frequency) -> f64 {
     match *period {
+        Frequency::Annually => interest,
         Frequency::Monthly => interest / 12.0,
         Frequency::BiWeekly => interest / 26.0,
         Frequency::Once => interest,
@@ -198,7 +200,7 @@ impl DateStream {
         }
     }
 
-    pub fn years(date: Option<NaiveDate>) -> DateStream {
+    pub fn yearly(date: Option<NaiveDate>) -> DateStream {
         DateStream::new(date, next_year)
     }
 
@@ -218,6 +220,7 @@ impl DateStream {
 impl From<(Frequency, Option<NaiveDate>)> for DateStream {
     fn from(val: (Frequency, Option<NaiveDate>)) -> DateStream {
         match val.0 {
+            Frequency::Annually => DateStream::yearly(val.1),
             Frequency::Monthly => DateStream::monthly(val.1),
             Frequency::BiWeekly => DateStream::biweekly(val.1),
             Frequency::Once => DateStream::once(val.1),
