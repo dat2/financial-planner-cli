@@ -15,3 +15,7 @@ error-chain = "0.10"
 combine = "2"
 log = "0.3"
 env_logger = "0.4"
+clippy = { version = "*", optional = true }
+
+[features]
+default = []

@@ -83,31 +83,7 @@ impl Accounts {
                 }
             }
             a => {
-                if path.len() == 0 {
-                    Ok(a)
-                } else {
-                    Err(ErrorKind::InvalidAccountName(String::from(path)).into())
-                }
-            }
-        }
-    }
-
-    pub fn get_mut(&mut self, path: &str) -> Result<&mut Accounts> {
-        match self {
-            &mut Accounts::Tree(ref mut m) => {
-                if let Some(index) = path.find(':') {
-                    let (account, sub_account) = path.split_at(index);
-                    trace!("get_mut [{}] split ([{}],[{}])", path, account, sub_account);
-                    m.get_mut(account)
-                        .ok_or_else(|| ErrorKind::InvalidAccountName(String::from(path)).into())
-                        .and_then(|a| a.get_mut(&sub_account[1..]))
-                } else {
-                    m.get_mut(path)
-                        .ok_or_else(|| ErrorKind::InvalidAccountName(String::from(path)).into())
-                }
-            }
-            a => {
-                if path.len() == 0 {
+                if path.is_empty() {
                     Ok(a)
                 } else {
                     Err(ErrorKind::InvalidAccountName(String::from(path)).into())
@@ -120,7 +96,7 @@ impl Accounts {
         let result = match *self {
             Accounts::Tree(ref m) => {
                 let mut result = Money::from(0);
-                for (_, account) in m {
+                for account in m.values() {
                     result += account.sum();
                 }
                 result
@@ -129,27 +105,6 @@ impl Accounts {
         };
         trace!("sum({:?}):({})", self, result);
         result
-    }
-
-    pub fn fold<B, F>(self, init: B, mut f: F) -> B
-        where F: FnMut(B, Account) -> B
-    {
-        self.fold_internal(init, &mut f)
-    }
-
-    fn fold_internal<B, F>(self, init: B, f: &mut F) -> B
-        where F: FnMut(B, Account) -> B
-    {
-        match self {
-            Accounts::Tree(m) => {
-                let mut result = init;
-                for (_, account) in m {
-                    result = account.fold_internal(result, f);
-                }
-                result
-            }
-            Accounts::Leaf(l) => f(init, l),
-        }
     }
 
     pub fn fold_with_path<B, F>(self, init: B, mut f: F) -> B
@@ -167,7 +122,7 @@ impl Accounts {
                 for (name, account) in m {
                     result = account.fold_with_path_internal(result,
                                                              &format!("{}{}",
-                                                                      if path.len() == 0 {
+                                                                      if path.is_empty() {
                                                                           String::new()
                                                                       } else {
                                                                           format!("{}:", path)
@@ -191,7 +146,7 @@ impl Accounts {
                 let mut result = Vec::new();
                 for (name, account) in m {
                     result.extend(account.paths_internal(&format!("{}{}",
-                                                                  if path.len() == 0 {
+                                                                  if path.is_empty() {
                                                                       String::new()
                                                                   } else {
                                                                       format!("{}:", path)
@@ -229,7 +184,7 @@ impl Accounts {
                 }
             }
             _ => {
-                if path.len() == 0 {
+                if path.is_empty() {
                     Ok(())
                 } else {
                     Err(ErrorKind::InvalidAccountName(path).into())
@@ -273,7 +228,7 @@ impl Accounts {
     pub fn validate(&self) -> Result<()> {
         if let Accounts::Tree(ref m) = *self {
             for (path, account) in m {
-                if let Some(_) = path.find(':') {
+                if path.find(':').is_some() {
                     return Err(ErrorKind::InvalidAccountName(path.clone()).into());
                 }
                 account.validate()?;
@@ -285,7 +240,7 @@ impl Accounts {
 
     pub fn apply(&mut self, transaction: Transaction) -> Result<()> {
         trace!("apply: {}", transaction);
-        let from_amount = transaction.from_amount(self)?;
+        let eval_from_amount = transaction.eval_from_amount(self)?;
 
         if self.get(&transaction.from).is_err() {
             self.create_account(transaction.from.clone(), Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
@@ -294,8 +249,8 @@ impl Accounts {
             self.create_account(transaction.to.clone(), Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
         }
 
-        self.withdraw(transaction.from, from_amount.clone())?;
-        self.deposit(transaction.to, from_amount)?;
+        self.withdraw(transaction.from, eval_from_amount.clone())?;
+        self.deposit(transaction.to, eval_from_amount)?;
         Ok(())
     }
 
@@ -331,7 +286,7 @@ impl Transaction {
         }
     }
 
-    pub fn from_amount(&self, accounts: &Accounts) -> Result<Money> {
+    pub fn eval_from_amount(&self, accounts: &Accounts) -> Result<Money> {
         self.amount.eval(accounts, &self.from)
     }
 }
@@ -456,10 +411,5 @@ impl<T, D> Iterator for History<T, D>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sum() {
-        // TODO
-    }
+    // TODO
 }

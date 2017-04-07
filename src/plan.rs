@@ -55,12 +55,12 @@ impl Plan {
     fn transactions(&self) -> SortedIterator<Transaction, RepeatingTransaction> {
         let mut result = Vec::new();
 
-        for (_, rule) in &self.rules {
+        for rule in self.rules.values() {
             match *rule {
                 Rule::RepeatingMoney(ref t) => {
                     result.push(RepeatingTransaction::from(t.clone()));
                 }
-                Rule::CompoundingInterest(ref t) => {}
+                Rule::CompoundingInterest(_) => {}
             }
         }
 

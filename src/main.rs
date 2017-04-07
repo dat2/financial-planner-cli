@@ -1,4 +1,6 @@
 #![recursion_limit = "1024"]
+#![cfg_attr(feature="clippy", feature(plugin))]
+#![cfg_attr(feature="clippy", plugin(clippy))]
 
 #[macro_use]
 extern crate clap;
@@ -32,7 +34,7 @@ use prettytable::cell::Cell;
 use plan::*;
 use errors::*;
 
-fn print_forecast(plan: Plan, years: usize) -> Result<()> {
+fn print_forecast(plan: &Plan, years: usize) -> Result<()> {
     let mut table = Table::new();
 
     let mut header = Vec::new();
@@ -40,7 +42,7 @@ fn print_forecast(plan: Plan, years: usize) -> Result<()> {
 
     let account_names = plan.accounts.get_account_names();
     for name in &account_names {
-        header.push(Cell::new(&name));
+        header.push(Cell::new(name));
     }
     table.add_row(Row::new(header));
 
@@ -86,7 +88,7 @@ fn run() -> Result<()> {
 
     if let Some(matches) = matches.subcommand_matches("forecast") {
         let years = value_t!(matches, "years", usize).unwrap_or(25);
-        print_forecast(plan, years)?;
+        print_forecast(&plan, years)?;
     }
 
     Ok(())

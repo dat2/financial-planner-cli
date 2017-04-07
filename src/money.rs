@@ -130,7 +130,7 @@ impl de::Visitor for MoneyVisitor {
         where E: de::Error
     {
         use std::i32;
-        if value >= i32::MIN as i64 && value <= i32::MAX as i64 {
+        if value <= i32::MAX as i64 {
             Ok(Money::from(value as i32))
         } else {
             Err(E::custom(format!("i32 out of range: {}", value)))
@@ -148,7 +148,7 @@ impl de::Visitor for MoneyVisitor {
         where E: de::Error
     {
         use std::u32;
-        if value >= u32::MIN as u64 && value <= u32::MAX as u64 {
+        if value <= u32::MAX as u64 {
             Ok(Money::from(value as u32))
         } else {
             Err(E::custom(format!("u32 out of range: {}", value)))
