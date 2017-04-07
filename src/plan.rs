@@ -32,8 +32,8 @@ pub struct MoneyTransfer {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompoundingInterest {
-    pub percent: f64,
     pub account: String,
+    pub interest_rate: f64,
     pub period: Frequency,
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
@@ -53,62 +53,72 @@ fn today() -> NaiveDate {
 
 impl Plan {
     fn transactions(&self) -> SortedIterator<Transaction, RepeatingTransaction> {
-        let mut result = Vec::new();
+        let mut iters = Vec::new();
 
         for rule in self.rules.values() {
-            match *rule {
-                Rule::RepeatingMoney(ref t) => {
-                    result.push(RepeatingTransaction::from(t.clone()));
-                }
-                Rule::CompoundingInterest(_) => {}
+            if let Rule::RepeatingMoney(ref t) = *rule {
+                iters.push(RepeatingTransaction::from(t.clone()));
             }
         }
 
-        SortedIterator::from_iter(result.into_iter())
+        SortedIterator::from_iter(iters.into_iter())
     }
 
-    pub fn history<D: Iterator<Item = NaiveDate>>
-        (&self,
-         dates: D)
-         -> History<SortedIterator<Transaction, RepeatingTransaction>, D> {
-        History::new((today(), self.accounts.clone()), self.transactions(), dates)
+    fn compounding(&self) -> SortedIterator<CompoundedInterest, InterestStream> {
+        let mut iters = Vec::new();
+
+        for rule in self.rules.values() {
+            if let Rule::CompoundingInterest(ref c) = *rule {
+                iters.push(InterestStream::from(c.clone()));
+            }
+        }
+
+        SortedIterator::from_iter(iters.into_iter())
+    }
+
+    pub fn history<D: Iterator<Item = NaiveDate>>(&self,
+                                                  dates: D)
+                                                  -> History<SortedIterator<Transaction,
+                                                                            RepeatingTransaction>,
+                                                             SortedIterator<CompoundedInterest,
+                                                                            InterestStream>,
+                                                             D> {
+        History::new((today(), self.accounts.clone()),
+                     self.transactions(),
+                     self.compounding(),
+                     dates)
     }
 }
 
 // stream stuff
-#[derive(Clone)]
 pub struct RepeatingTransaction {
-    frequency: Frequency,
+    iterator: DateStream,
     amount: Amount,
     from: String,
     to: String,
-    state: Option<NaiveDate>,
 }
 
 impl RepeatingTransaction {
-    fn new<T: Into<Amount>>(frequency: Frequency,
+    fn new<T: Into<Amount>>(iterator: DateStream,
                             amount: T,
                             from: String,
-                            to: String,
-                            state: NaiveDate)
+                            to: String)
                             -> RepeatingTransaction {
         RepeatingTransaction {
-            frequency: frequency,
+            iterator: iterator,
             amount: amount.into(),
             from: from,
             to: to,
-            state: Some(state),
         }
     }
 }
 
 impl From<MoneyTransfer> for RepeatingTransaction {
     fn from(transfer: MoneyTransfer) -> RepeatingTransaction {
-        RepeatingTransaction::new(transfer.frequency,
+        RepeatingTransaction::new(DateStream::from((transfer.frequency, transfer.start_date)),
                                   transfer.amount,
                                   transfer.from,
-                                  transfer.to,
-                                  transfer.start_date.unwrap_or_else(today))
+                                  transfer.to)
     }
 }
 
@@ -116,52 +126,102 @@ impl Iterator for RepeatingTransaction {
     type Item = Transaction;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.state {
-            Some(previous_date) => {
-                let next_date = match self.frequency {
-                    Frequency::Monthly => Some(previous_date + chrono::Duration::weeks(4)),
-                    Frequency::BiWeekly => Some(previous_date + chrono::Duration::weeks(2)),
-                    Frequency::Once => None,
-                };
-
-                self.state = next_date;
-                trace!("RepeatingTransaction next state {}",
-                               Transaction::new(Amount::from(self.amount.clone()),
-                                                self.from.clone(),
-                                                self.to.clone(),
-                                                previous_date));
-
+        match self.iterator.next() {
+            Some(next_date) => {
                 Some(Transaction::new(Amount::from(self.amount.clone()),
                                       self.from.clone(),
                                       self.to.clone(),
-                                      previous_date))
+                                      next_date))
             }
             None => None,
         }
     }
 }
 
+pub struct InterestStream {
+    iterator: DateStream,
+    interest_rate: f64,
+    account: String,
+}
+
+impl InterestStream {
+    fn new(iterator: DateStream, interest_rate: f64, account: String) -> InterestStream {
+        InterestStream {
+            iterator: iterator,
+            interest_rate: interest_rate,
+            account: account,
+        }
+    }
+}
+
+fn interest_per_period(interest: f64, period: &Frequency) -> f64 {
+    match *period {
+        Frequency::Monthly => interest / 12.0,
+        Frequency::BiWeekly => interest / 26.0,
+        Frequency::Once => interest,
+    }
+}
+
+impl From<CompoundingInterest> for InterestStream {
+    fn from(rule: CompoundingInterest) -> InterestStream {
+        let interest_rate = interest_per_period(rule.interest_rate, &rule.period);
+        InterestStream::new(DateStream::from((rule.period, rule.start_date)),
+                            interest_rate,
+                            rule.account)
+    }
+}
+
+impl Iterator for InterestStream {
+    type Item = CompoundedInterest;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iterator.next() {
+            Some(next_date) => {
+                Some(CompoundedInterest::new(next_date, self.interest_rate, self.account.clone()))
+            }
+            None => None,
+        }
+    }
+}
+
+// date streams are fun yay
 pub struct DateStream {
-    date: NaiveDate,
-    func: fn(NaiveDate) -> NaiveDate,
+    date: Option<NaiveDate>,
+    func: fn(NaiveDate) -> Option<NaiveDate>,
 }
 
 impl DateStream {
-    fn new(func: fn(NaiveDate) -> NaiveDate) -> DateStream {
+    fn new(date: Option<NaiveDate>, func: fn(NaiveDate) -> Option<NaiveDate>) -> DateStream {
         DateStream {
-            date: today(),
+            date: if date.is_none() { Some(today()) } else { date },
             func: func,
         }
     }
 
-    fn next_year(previous_date: NaiveDate) -> NaiveDate {
-        NaiveDate::from_ymd(previous_date.year() + 1,
-                            previous_date.month(),
-                            previous_date.day())
+    pub fn years(date: Option<NaiveDate>) -> DateStream {
+        DateStream::new(date, next_year)
     }
 
-    pub fn years() -> DateStream {
-        DateStream::new(DateStream::next_year)
+    pub fn monthly(date: Option<NaiveDate>) -> DateStream {
+        DateStream::new(date, next_month)
+    }
+
+    pub fn biweekly(date: Option<NaiveDate>) -> DateStream {
+        DateStream::new(date, next_biweek)
+    }
+
+    pub fn once(date: Option<NaiveDate>) -> DateStream {
+        DateStream::new(date, once)
+    }
+}
+
+impl From<(Frequency, Option<NaiveDate>)> for DateStream {
+    fn from(val: (Frequency, Option<NaiveDate>)) -> DateStream {
+        match val.0 {
+            Frequency::Monthly => DateStream::monthly(val.1),
+            Frequency::BiWeekly => DateStream::biweekly(val.1),
+            Frequency::Once => DateStream::once(val.1),
+        }
     }
 }
 
@@ -170,7 +230,25 @@ impl Iterator for DateStream {
 
     fn next(&mut self) -> Option<Self::Item> {
         let previous_date = self.date;
-        self.date = (self.func)(previous_date);
-        Some(previous_date)
+        self.date = previous_date.and_then(self.func);
+        previous_date
     }
+}
+
+fn next_year(previous_date: NaiveDate) -> Option<NaiveDate> {
+    Some(NaiveDate::from_ymd(previous_date.year() + 1,
+                             previous_date.month(),
+                             previous_date.day()))
+}
+
+fn next_month(previous_date: NaiveDate) -> Option<NaiveDate> {
+    Some(previous_date + chrono::Duration::weeks(4))
+}
+
+fn next_biweek(previous_date: NaiveDate) -> Option<NaiveDate> {
+    Some(previous_date + chrono::Duration::weeks(4))
+}
+
+fn once(_: NaiveDate) -> Option<NaiveDate> {
+    None
 }

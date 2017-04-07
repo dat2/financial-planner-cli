@@ -4,10 +4,9 @@ use std::cmp::Ordering;
 use std::cell::RefCell;
 use std::iter::FromIterator;
 
-#[derive(Clone)]
-pub struct OrdIterator<T: Ord, P: Iterator<Item = T> + Clone>(RefCell<Peekable<P>>);
+pub struct OrdIterator<T: Ord, P: Iterator<Item = T>>(RefCell<Peekable<P>>);
 
-impl<T: Ord, P: Iterator<Item = T> + Clone> PartialEq for OrdIterator<T, P> {
+impl<T: Ord, P: Iterator<Item = T>> PartialEq for OrdIterator<T, P> {
     fn eq(&self, other: &Self) -> bool {
 
         let mut this = self.0.borrow_mut();
@@ -30,9 +29,9 @@ impl<T: Ord, P: Iterator<Item = T> + Clone> PartialEq for OrdIterator<T, P> {
     }
 }
 
-impl<T: Ord, P: Iterator<Item = T> + Clone> Eq for OrdIterator<T, P> {}
+impl<T: Ord, P: Iterator<Item = T>> Eq for OrdIterator<T, P> {}
 
-impl<T: Ord, P: Iterator<Item = T> + Clone> PartialOrd for OrdIterator<T, P> {
+impl<T: Ord, P: Iterator<Item = T>> PartialOrd for OrdIterator<T, P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 
         let mut this = self.0.borrow_mut();
@@ -63,18 +62,17 @@ impl<T: Ord, P: Iterator<Item = T> + Clone> PartialOrd for OrdIterator<T, P> {
 }
 
 // http://stackoverflow.com/questions/39949939/how-can-i-implement-a-min-heap-of-f64-with-rusts-binaryheap
-impl<T: Ord, P: Iterator<Item = T> + Clone> Ord for OrdIterator<T, P> {
+impl<T: Ord, P: Iterator<Item = T>> Ord for OrdIterator<T, P> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-#[derive(Clone)]
-pub struct SortedIterator<T: Ord, P: Iterator<Item = T> + Clone> {
+pub struct SortedIterator<T: Ord, P: Iterator<Item = T>> {
     heap: BinaryHeap<OrdIterator<T, P>>,
 }
 
-impl<T: Ord, P: Iterator<Item = T> + Clone> FromIterator<P> for SortedIterator<T, P> {
+impl<T: Ord, P: Iterator<Item = T>> FromIterator<P> for SortedIterator<T, P> {
     fn from_iter<I>(iter: I) -> Self
         where I: IntoIterator<Item = P>
     {
@@ -84,8 +82,8 @@ impl<T: Ord, P: Iterator<Item = T> + Clone> FromIterator<P> for SortedIterator<T
 }
 
 impl<T, P> Iterator for SortedIterator<T, P>
-    where T: Ord + Clone,
-          P: Iterator<Item = T> + Clone
+    where T: Ord,
+          P: Iterator<Item = T>
 {
     type Item = T;
 

@@ -73,7 +73,6 @@ impl Accounts {
             &Accounts::Tree(ref m) => {
                 if let Some(index) = path.find(':') {
                     let (account, sub_account) = path.split_at(index);
-                    trace!("get [{}] split ([{}],[{}])", path, account, sub_account);
                     m.get(account)
                         .ok_or_else(|| ErrorKind::InvalidAccountName(String::from(path)).into())
                         .and_then(|a| a.get(&sub_account[1..]))
@@ -103,7 +102,6 @@ impl Accounts {
             }
             Accounts::Leaf(ref a) => a.amount(),
         };
-        trace!("sum({:?}):({})", self, result);
         result
     }
 
@@ -194,7 +192,6 @@ impl Accounts {
     }
 
     pub fn deposit(&mut self, path: String, amount: Money) -> Result<()> {
-        trace!("deposit ({}) into [{}]", amount, path);
         match *self {
             Accounts::Tree(ref mut m) => {
                 if let Some(index) = path.find(':') {
@@ -204,11 +201,12 @@ impl Accounts {
                         .deposit(String::from(&sub_path[1..]), amount)?;
                     Ok(())
                 } else if m.contains_key(&path) {
-                    m.get_mut(&path).unwrap()
+                    m.get_mut(&path)
+                        .unwrap()
                         .deposit(path.clone(), amount)?;
                     Ok(())
                 } else {
-                Ok(())
+                    Ok(())
                 }
             }
             Accounts::Leaf(Account::Simple(ref mut s)) => {
@@ -239,16 +237,17 @@ impl Accounts {
     }
 
     pub fn apply(&mut self, transaction: Transaction) -> Result<()> {
-        trace!("apply: {}", transaction);
-        let eval_from_amount = transaction.eval_from_amount(self)?;
-
         if self.get(&transaction.from).is_err() {
-            self.create_account(transaction.from.clone(), Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
+            self.create_account(transaction.from.clone(),
+                                Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
         }
         if self.get(&transaction.to).is_err() {
-            self.create_account(transaction.to.clone(), Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
+            self.create_account(transaction.to.clone(),
+                                Account::Simple(SimpleAccount { amount: Money::from(0) }))?;
         }
 
+        trace!("apply: {}", transaction);
+        let eval_from_amount = transaction.eval_from_amount(self)?;
         self.withdraw(transaction.from, eval_from_amount.clone())?;
         self.deposit(transaction.to, eval_from_amount)?;
         Ok(())
@@ -307,7 +306,12 @@ impl Ord for Transaction {
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] sending ({}) to [{}] on {{{}}}", self.from, self.amount, self.to, self.date)
+        write!(f,
+               "[{}] sending ({}) to [{}] on {{{}}}",
+               self.from,
+               self.amount,
+               self.to,
+               self.date)
     }
 }
 
@@ -343,7 +347,6 @@ impl Amount {
                     .map(|account| account.mul_percent(Float::from((p, 64))))
             }
         };
-        trace!("eval({:?},{}):({:?})", accounts, from, result);
         result
     }
 }
@@ -357,19 +360,70 @@ impl fmt::Display for Amount {
     }
 }
 
-pub struct History<T: Iterator<Item = Transaction> + Clone, D: Iterator<Item = NaiveDate>> {
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct CompoundedInterest {
+    pub date: NaiveDate,
+    pub amount: f64,
+    pub account: String,
+}
+
+impl CompoundedInterest {
+    pub fn new(date: NaiveDate, amount: f64, account: String) -> CompoundedInterest {
+        CompoundedInterest {
+            date: date,
+            amount: amount,
+            account: account,
+        }
+    }
+}
+
+impl fmt::Display for CompoundedInterest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "{:.2}% for [{}] on ({})",
+               self.amount * 100.0,
+               self.account,
+               self.date)
+    }
+}
+
+impl Eq for CompoundedInterest {}
+
+impl PartialOrd for CompoundedInterest {
+    fn partial_cmp(&self, other: &CompoundedInterest) -> Option<Ordering> {
+        self.date.partial_cmp(&other.date)
+    }
+}
+
+impl Ord for CompoundedInterest {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.date.cmp(&other.date)
+    }
+}
+
+pub struct History<T: Iterator<Item = Transaction>,
+                   C: Iterator<Item = CompoundedInterest>,
+                   D: Iterator<Item = NaiveDate>>
+{
     transactions: Peekable<T>,
+    interest: Peekable<C>,
     dates: D,
     state: (NaiveDate, Accounts),
 }
 
-impl<T, D> History<T, D>
-    where T: Iterator<Item = Transaction> + Clone,
+impl<T, C, D> History<T, C, D>
+    where T: Iterator<Item = Transaction>,
+          C: Iterator<Item = CompoundedInterest>,
           D: Iterator<Item = NaiveDate>
 {
-    pub fn new(state: (NaiveDate, Accounts), transactions: T, dates: D) -> History<T, D> {
+    pub fn new(state: (NaiveDate, Accounts),
+               transactions: T,
+               interest: C,
+               dates: D)
+               -> History<T, C, D> {
         History {
             transactions: transactions.peekable(),
+            interest: interest.peekable(),
             dates: dates,
             state: state,
         }
@@ -377,8 +431,9 @@ impl<T, D> History<T, D>
 }
 
 // this assumes that users have validated the transactions first :)
-impl<T, D> Iterator for History<T, D>
-    where T: Iterator<Item = Transaction> + Clone,
+impl<T, C, D> Iterator for History<T, C, D>
+    where T: Iterator<Item = Transaction>,
+          C: Iterator<Item = CompoundedInterest>,
           D: Iterator<Item = NaiveDate>
 {
     type Item = (NaiveDate, Accounts);
@@ -397,6 +452,33 @@ impl<T, D> Iterator for History<T, D>
                     };
                     if consume {
                         self.state.1.apply(self.transactions.next().unwrap()).unwrap();
+                    } else {
+                        break;
+                    }
+                }
+
+                loop {
+                    let consume = if let Some(interest) = self.interest.peek() {
+                        interest.date <= next_date
+                    } else {
+                        false
+                    };
+                    if consume {
+                        let interest = self.interest.next().unwrap();
+                        let evaluated = match self.state.1.eval().unwrap().get(&interest.account) {
+                            Some(amount) => {
+                                amount.clone().mul_percent(Float::from((interest.amount, 64)))
+                            }
+                            None => Money::from(0),
+                        };
+                        self.state
+                            .1
+                            .apply(Transaction::new(Amount::Money(evaluated),
+                                                    format!("equity:interest:{}",
+                                                            interest.account.clone()),
+                                                    interest.account,
+                                                    interest.date))
+                            .unwrap();
                     } else {
                         break;
                     }
